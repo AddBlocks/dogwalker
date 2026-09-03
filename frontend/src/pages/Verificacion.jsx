@@ -1,0 +1,54 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
+
+export default function Verificacion() {
+  const nav = useNavigate();
+  const [files, setFiles] = useState({ cedula_frente: null, cedula_reverso: null, selfie: null });
+  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError("");
+    const fd = new FormData();
+    for (const k of Object.keys(files)) {
+      if (!files[k]) return setError("Subí las tres fotos: cédula frente, reverso y selfie.");
+      fd.append(k, files[k]);
+    }
+    try {
+      const data = await api("/api/paseadores/verificacion", { method: "POST", body: fd });
+      setMsg(data.mensaje);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <div className="min-h-dvh bg-crema px-5 py-8">
+      <h1 className="font-display text-3xl text-bosque">Verificación de identidad</h1>
+      <p className="text-sm mt-2 text-tinta/70">
+        Subí tu cédula por ambos lados y una selfie. Las imágenes se cifran y se borran 30 días después de la aprobación.
+        No apareces en el mapa hasta que te aprueben.
+      </p>
+      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        {[
+          ["cedula_frente", "Cédula — frente"],
+          ["cedula_reverso", "Cédula — reverso"],
+          ["selfie", "Selfie"],
+        ].map(([k, label]) => (
+          <label key={k} className="block text-sm font-bold">
+            {label}
+            <input className="mt-1 block w-full" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFiles((f) => ({ ...f, [k]: e.target.files[0] }))} />
+          </label>
+        ))}
+        {error && <p className="text-greda text-sm">{error}</p>}
+        {msg && <p className="text-bosque-claro text-sm">{msg}</p>}
+        <button className="w-full bg-bosque text-crema font-bold rounded-xl py-3">Enviar documentos</button>
+        <button type="button" className="w-full" onClick={() => nav("/perfil")}>
+          Seguir después
+        </button>
+      </form>
+    </div>
+  );
+}

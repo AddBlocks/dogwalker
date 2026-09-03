@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.env
+backend/data/
+backend/uploads/
+*.db
+*.db-journal
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+frontend/dev-dist/
+android/
+ios/
+.capacitor/
