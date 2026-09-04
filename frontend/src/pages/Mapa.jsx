@@ -8,13 +8,14 @@ import { useAuth } from "../lib/auth";
 import AdSlot from "../components/AdSlot";
 import WalkerCard from "../components/WalkerCard";
 import Stars from "../components/Stars";
+import { pinHuellasHtml } from "../components/Logo";
 
 function pinIcon(destacado) {
   return L.divIcon({
     className: "",
-    html: `<div class="pin-paseador ${destacado ? "destacado" : ""}">🐾</div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    html: pinHuellasHtml(destacado),
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 
@@ -94,33 +95,8 @@ export default function Mapa() {
   }
 
   return (
-    <div className="relative">
-      <div className="absolute z-[500] left-3 right-3 top-3 space-y-2">
-        <div className="bg-white/95 rounded-2xl p-3 shadow-ficha grid grid-cols-2 gap-2">
-          <select className="col-span-2 rounded-xl border border-arena px-2 py-2 text-sm" value={filtros.comuna} onChange={(e) => onComuna(e.target.value)}>
-            <option value="">Todas las comunas</option>
-            {comunas.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-          <input
-            className="rounded-xl border border-arena px-2 py-2 text-sm"
-            type="number"
-            placeholder="Precio máx. CLP"
-            value={filtros.precio_max}
-            onChange={(e) => setFiltros((f) => ({ ...f, precio_max: e.target.value }))}
-          />
-          <select className="rounded-xl border border-arena px-2 py-2 text-sm" value={filtros.calificacion_min} onChange={(e) => setFiltros((f) => ({ ...f, calificacion_min: e.target.value }))}>
-            <option value="">Cualquier nota</option>
-            <option value="4">4.0 o más</option>
-            <option value="4.5">4.5 o más</option>
-          </select>
-        </div>
-      </div>
-
-      <MapContainer center={center} zoom={12} className="h-[62vh] w-full" zoomControl={false}>
+    <div className="flex flex-col">
+      <MapContainer center={center} zoom={12} className="h-[calc(100dvh-19.5rem)] min-h-[42vh] w-full" zoomControl={false}>
         <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {geo && (
           <GeoJSON
@@ -142,7 +118,7 @@ export default function Mapa() {
         <FlyTo center={center} />
       </MapContainer>
 
-      <div className="px-3 -mt-4 relative z-[400] space-y-3">
+      <div className="px-3 py-2 space-y-2">
         {ad && <AdSlot ad={ad} compact />}
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-bosque">{walkers.length} paseadores</p>
@@ -158,7 +134,7 @@ export default function Mapa() {
           </div>
         </div>
         {lista && (
-          <div className="space-y-3 pb-4">
+          <div className="space-y-3 max-h-[28vh] overflow-auto">
             {walkers.map((w, i) => (
               <div key={w.id}>
                 <WalkerCard walker={w} />
@@ -167,6 +143,31 @@ export default function Mapa() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="sticky bottom-20 z-[500] bg-white border-t border-arena px-3 py-3 shadow-[0_-8px_24px_rgba(27,67,50,0.12)]">
+        <div className="grid grid-cols-2 gap-2">
+          <select className="col-span-2 rounded-xl border border-arena px-2 py-2 text-sm" value={filtros.comuna} onChange={(e) => onComuna(e.target.value)}>
+            <option value="">Todas las comunas</option>
+            {comunas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+          <input
+            className="rounded-xl border border-arena px-2 py-2 text-sm"
+            type="number"
+            placeholder="Precio máx. CLP"
+            value={filtros.precio_max}
+            onChange={(e) => setFiltros((f) => ({ ...f, precio_max: e.target.value }))}
+          />
+          <select className="rounded-xl border border-arena px-2 py-2 text-sm" value={filtros.calificacion_min} onChange={(e) => setFiltros((f) => ({ ...f, calificacion_min: e.target.value }))}>
+            <option value="">Cualquier nota</option>
+            <option value="4">4.0 o más</option>
+            <option value="4.5">4.5 o más</option>
+          </select>
+        </div>
       </div>
     </div>
   );

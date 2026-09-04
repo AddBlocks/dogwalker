@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import Logo from "./Logo";
 
 const item = ({ isActive }) =>
   `flex flex-col items-center text-[11px] font-bold ${isActive ? "text-oro" : "text-white/70"}`;
@@ -9,7 +10,7 @@ export default function Layout() {
   return (
     <div className="min-h-dvh flex flex-col">
       <header className="sticky top-0 z-20 bg-bosque text-crema px-4 py-3 flex items-center gap-2">
-        <img src="/logo.svg" alt="" className="w-8 h-8 rounded-lg" />
+        <Logo className="w-8 h-8" />
         <div>
           <p className="font-display text-lg leading-none">PaseoPatitas</p>
           <p className="text-[11px] text-crema/70">Santiago · solo paseos</p>

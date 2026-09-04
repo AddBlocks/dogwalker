@@ -1,7 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#1B4332"/>
-  <ellipse cx="20" cy="24" rx="7" ry="9" fill="#E9B44C"/>
-  <ellipse cx="32" cy="20" rx="7" ry="8" fill="#E9B44C"/>
-  <ellipse cx="44" cy="24" rx="7" ry="9" fill="#E9B44C"/>
-  <ellipse cx="32" cy="42" rx="12" ry="10" fill="#F6F1E7"/>
+  <rect width="64" height="64" rx="14" fill="#F6F1E7"/>
+  <g fill="#6B3410" transform="translate(5 15) rotate(-22 15 17)">
+    <ellipse cx="6" cy="8" rx="3.6" ry="4.7"/>
+    <ellipse cx="14" cy="4.5" rx="3.8" ry="5"/>
+    <ellipse cx="22.5" cy="8" rx="3.6" ry="4.7"/>
+    <ellipse cx="27" cy="16" rx="3.2" ry="4.1"/>
+    <ellipse cx="15" cy="23" rx="10" ry="8.2"/>
+  </g>
+  <g fill="#8B4513" transform="translate(27 20) rotate(18 15 17)">
+    <ellipse cx="6" cy="8" rx="3.6" ry="4.7"/>
+    <ellipse cx="14" cy="4.5" rx="3.8" ry="5"/>
+    <ellipse cx="22.5" cy="8" rx="3.6" ry="4.7"/>
+    <ellipse cx="27" cy="16" rx="3.2" ry="4.1"/>
+    <ellipse cx="15" cy="23" rx="10" ry="8.2"/>
+  </g>
 </svg>

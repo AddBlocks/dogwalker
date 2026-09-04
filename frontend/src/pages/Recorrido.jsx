@@ -6,15 +6,25 @@ import "leaflet/dist/leaflet.css";
 import { api, clp } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { estadoLabel } from "../lib/format";
+import { pinHuellasHtml } from "../components/Logo";
 
 const SANTIAGO = [-33.4372, -70.6506];
 
-function pin(html, extra = "") {
+function pinPaseador(destacado = false) {
   return L.divIcon({
     className: "",
-    html: `<div class="pin-paseador ${extra}">${html}</div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    html: pinHuellasHtml(destacado),
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  });
+}
+
+function pinInicio() {
+  return L.divIcon({
+    className: "",
+    html: `<div class="pin-paseador" style="display:flex;align-items:center;justify-content:center;font-weight:800;color:#6B3410;background:#F6F1E7">A</div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 
@@ -193,8 +203,8 @@ export default function Recorrido() {
       <MapContainer center={centro} zoom={15} className="h-[46vh] w-full" zoomControl={false}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {path.length > 1 && <Polyline positions={path} pathOptions={{ color: "#C45C26", weight: 5, opacity: 0.9 }} />}
-        {inicio && <Marker position={[inicio.lat, inicio.lng]} icon={pin("A", "")} />}
-        {actual && <Marker position={[actual.lat, actual.lng]} icon={pin("🐾", enCurso ? "destacado" : "")} />}
+        {inicio && <Marker position={[inicio.lat, inicio.lng]} icon={pinInicio()} />}
+        {actual && <Marker position={[actual.lat, actual.lng]} icon={pinPaseador(enCurso)} />}
         <FitRoute puntos={puntos} />
       </MapContainer>
 

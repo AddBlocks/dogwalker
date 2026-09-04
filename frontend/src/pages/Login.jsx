@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { api, setToken } from "../lib/api";
+import Logo from "../components/Logo";
 
 export default function Login() {
   const { login, refresh, user } = useAuth();
@@ -43,7 +44,7 @@ export default function Login() {
 
   return (
     <div className="min-h-dvh bg-bosque text-crema px-5 py-10 flex flex-col">
-      <img src="/logo.svg" alt="" className="w-16 h-16 rounded-2xl mb-4" />
+      <Logo className="w-16 h-16 mb-4" />
       <h1 className="font-display text-4xl leading-tight">Paseos de confianza en Santiago</h1>
       <p className="mt-2 text-crema/75">Conecta dueños y paseadores. Sin hospedaje ni pagos por la app.</p>
       <form onSubmit={onSubmit} className="mt-8 space-y-3 bg-crema text-tinta rounded-3xl p-5">
