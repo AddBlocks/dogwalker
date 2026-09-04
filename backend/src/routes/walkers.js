@@ -6,6 +6,7 @@ import { db } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { writeEncrypted } from "../services/encryption.js";
 import { submitVerification, verificationProviderName } from "../services/verification.js";
+import { geocodeLista, geocodeSantiago, haversineKm } from "../services/geocode.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.join(__dirname, "..", "..", "uploads", "ids");
@@ -20,13 +21,16 @@ const upload = multer({
 
 export const walkersRouter = Router();
 
+function parseCalles(json) {
+  try {
+    const a = JSON.parse(json || "[]");
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+}
+
 function walkerRow(row) {
-  const comunas = db
-    .prepare(
-      `SELECT c.id, c.nombre, c.lat, c.lng FROM paseador_comunas pc
-       JOIN comunas c ON c.id = pc.comuna_id WHERE pc.paseador_id = ?`
-    )
-    .all(row.paseador_id);
   return {
     id: row.user_id,
     paseador_id: row.paseador_id,
@@ -39,10 +43,57 @@ function walkerRow(row) {
     calificacion: row.calificacion_promedio,
     cantidad_reseñas: row.calificacion_count,
     paseos: row.paseos_completados,
-    comunas,
+    lat: row.lat,
+    lng: row.lng,
+    radio_km: row.radio_km,
+    calles: parseCalles(row.calles_json).map((c) => ({
+      nombre: c.nombre,
+      lat: c.lat,
+      lng: c.lng,
+    })),
     telefono_visible: false,
   };
 }
+
+walkersRouter.put("/mi-oferta", auth(true), requireRol("paseador"), async (req, res) => {
+  const { descripcion, precio_clp, disponibilidad, direccion, radio_km, calles } = req.body || {};
+  const p = db.prepare("SELECT id FROM paseadores WHERE user_id = ?").get(req.user.id);
+  if (!p) return res.status(404).json({ error: "Perfil de paseador no encontrado." });
+  const radio = Number(radio_km);
+  if (!direccion || !String(direccion).trim()) {
+    return res.status(400).json({ error: "Ingresa tu dirección. Queda privada; solo se usa como centro de tu zona." });
+  }
+  if (!Number.isFinite(radio) || radio < 0.5 || radio > 20) {
+    return res.status(400).json({ error: "El radio de paseo debe ser entre 0,5 y 20 km." });
+  }
+  const geo = await geocodeSantiago(direccion);
+  if (!geo) {
+    return res.status(400).json({
+      error: "No encontramos esa dirección en Santiago. Probá con calle, número y comuna.",
+    });
+  }
+  const nombres = Array.isArray(calles)
+    ? [...new Set(calles.map((c) => String(c).trim()).filter(Boolean))].slice(0, 12)
+    : [];
+  const callesGeo = nombres.length ? await geocodeLista(nombres) : [];
+  db.prepare(
+    `UPDATE paseadores
+     SET descripcion = ?, precio_clp = ?, disponibilidad = ?,
+         direccion_privada = ?, lat = ?, lng = ?, radio_km = ?, calles_json = ?
+     WHERE id = ?`
+  ).run(
+    descripcion || null,
+    precio_clp || null,
+    disponibilidad || null,
+    String(direccion).trim(),
+    geo.lat,
+    geo.lng,
+    radio,
+    JSON.stringify(callesGeo),
+    p.id
+  );
+  res.json({ ok: true, zona: { radio_km: radio, calles: callesGeo.length } });
+});
 
 walkersRouter.get("/", (req, res) => {
   const comunaId = req.query.comuna ? Number(req.query.comuna) : null;
@@ -51,16 +102,14 @@ walkersRouter.get("/", (req, res) => {
 
   let sql = `
     SELECT u.id AS user_id, u.nombre, u.avatar_url, u.calificacion_promedio, u.calificacion_count,
-           p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados
+           p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados,
+           p.lat, p.lng, p.radio_km, p.calles_json
     FROM paseadores p
     JOIN users u ON u.id = p.user_id
     WHERE p.estado_verificacion = 'aprobado' AND u.deleted_at IS NULL
+      AND p.lat IS NOT NULL AND p.lng IS NOT NULL AND p.radio_km IS NOT NULL
   `;
   const params = [];
-  if (comunaId) {
-    sql += ` AND p.id IN (SELECT paseador_id FROM paseador_comunas WHERE comuna_id = ?)`;
-    params.push(comunaId);
-  }
   if (precioMax) {
     sql += ` AND p.precio_clp <= ?`;
     params.push(precioMax);
@@ -71,8 +120,14 @@ walkersRouter.get("/", (req, res) => {
   }
   sql += ` ORDER BY p.destacado DESC, u.calificacion_promedio DESC, p.paseos_completados DESC`;
 
-  const rows = db.prepare(sql).all(...params);
-  res.json(rows.map(walkerRow));
+  let rows = db.prepare(sql).all(...params).map(walkerRow);
+  if (comunaId) {
+    const comuna = db.prepare("SELECT lat, lng FROM comunas WHERE id = ?").get(comunaId);
+    if (comuna) {
+      rows = rows.filter((w) => haversineKm({ lat: w.lat, lng: w.lng }, comuna) <= Number(w.radio_km));
+    }
+  }
+  res.json(rows);
 });
 
 walkersRouter.get("/:id", (req, res) => {
@@ -80,7 +135,7 @@ walkersRouter.get("/:id", (req, res) => {
     .prepare(
       `SELECT u.id AS user_id, u.nombre, u.avatar_url, u.calificacion_promedio, u.calificacion_count,
               p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados,
-              p.estado_verificacion
+              p.estado_verificacion, p.lat, p.lng, p.radio_km, p.calles_json
        FROM paseadores p JOIN users u ON u.id = p.user_id
        WHERE u.id = ? AND u.deleted_at IS NULL`
     )
@@ -98,26 +153,6 @@ walkersRouter.get("/:id", (req, res) => {
     .all(row.user_id);
   res.json({ ...walkerRow(row), resenas });
 });
-
-walkersRouter.put(
-  "/mi-oferta",
-  auth(true),
-  requireRol("paseador"),
-  (req, res) => {
-    const { descripcion, precio_clp, disponibilidad, comunas } = req.body || {};
-    const p = db.prepare("SELECT id FROM paseadores WHERE user_id = ?").get(req.user.id);
-    if (!p) return res.status(404).json({ error: "Perfil de paseador no encontrado." });
-    db.prepare(
-      `UPDATE paseadores SET descripcion = ?, precio_clp = ?, disponibilidad = ? WHERE id = ?`
-    ).run(descripcion || null, precio_clp || null, disponibilidad || null, p.id);
-    if (Array.isArray(comunas)) {
-      db.prepare("DELETE FROM paseador_comunas WHERE paseador_id = ?").run(p.id);
-      const ins = db.prepare("INSERT INTO paseador_comunas (paseador_id, comuna_id) VALUES (?, ?)");
-      for (const cid of comunas) ins.run(p.id, Number(cid));
-    }
-    res.json({ ok: true });
-  }
-);
 
 walkersRouter.post(
   "/verificacion",

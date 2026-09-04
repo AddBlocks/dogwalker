@@ -54,15 +54,32 @@ const duenoId = upsertUser({
   calificacion_count: 6,
 });
 
+function comunaById(id) {
+  return COMUNAS.find((c) => c.id === id);
+}
+
+function callesCerca(home, nombres) {
+  return nombres.map((nombre, i) => {
+    const a = ((i + 1) / (nombres.length + 1)) * Math.PI * 2;
+    return {
+      nombre,
+      lat: Number((home.lat + 0.006 * Math.cos(a)).toFixed(5)),
+      lng: Number((home.lng + 0.008 * Math.sin(a)).toFixed(5)),
+    };
+  });
+}
+
 const walkers = [
   {
     email: "camila@paseopatitas.cl",
     nombre: "Camila Rojas",
     telefono: "+56932111111",
-    descripcion: "Paseos tranquilos en Las Condes. Trabajo con perros chicos y medianos, ritmo según tu peludo.",
+    descripcion: "Paseos tranquilos desde Las Condes. Trabajo con perros chicos y medianos, ritmo según tu peludo.",
     precio: 12000,
     disponibilidad: "Lunes a viernes 8:00–13:00 y 16:00–19:00",
-    comunas: [14, 32],
+    home: 14,
+    radio_km: 5,
+    calles: ["Av. Apoquindo", "El Golf"],
     destacado: 1,
     rating: 4.8,
     count: 47,
@@ -75,7 +92,9 @@ const walkers = [
     descripcion: "Ñuñoa y alrededores. Me encantan los perros energéticos: pelota, trote corto y hartos olores.",
     precio: 9000,
     disponibilidad: "Todos los días 7:30–11:00 y 17:00–20:00",
-    comunas: [20, 23],
+    home: 20,
+    radio_km: 4,
+    calles: ["Irarrázaval", "Av. Grecia"],
     destacado: 0,
     rating: 4.6,
     count: 31,
@@ -85,10 +104,12 @@ const walkers = [
     email: "fernanda@paseopatitas.cl",
     nombre: "Fernanda Díaz",
     telefono: "+56932111113",
-    descripcion: "Providencia y Santiago centro. Puntual, con reporte por WhatsApp al terminar.",
+    descripcion: "Paseos por Providencia y el centro. Puntual, con reporte por WhatsApp al terminar.",
     precio: 11000,
     disponibilidad: "Lunes a sábado 9:00–18:00",
-    comunas: [23, 1],
+    home: 23,
+    radio_km: 4,
+    calles: ["Av. Providencia", "Av. Italia"],
     destacado: 1,
     rating: 4.9,
     count: 62,
@@ -98,10 +119,12 @@ const walkers = [
     email: "diego@paseopatitas.cl",
     nombre: "Diego Muñoz",
     telefono: "+56932111114",
-    descripcion: "Maipú y Cerrillos. Paseos de 45 a 60 minutos, también perros grandes.",
+    descripcion: "Paseos de 45 a 60 minutos desde Maipú, también perros grandes.",
     precio: 8000,
     disponibilidad: "Martes a domingo 8:00–14:00",
-    comunas: [19, 2],
+    home: 19,
+    radio_km: 5,
+    calles: ["Av. Pajaritos", "5 de Abril"],
     destacado: 0,
     rating: 4.4,
     count: 18,
@@ -111,10 +134,12 @@ const walkers = [
     email: "valentina@paseopatitas.cl",
     nombre: "Valentina Pérez",
     telefono: "+56932111115",
-    descripcion: "La Florida y Peñalolén. Paciente con perros reactivos y primerizos.",
+    descripcion: "La Florida y alrededores. Paciente con perros reactivos y primerizos.",
     precio: 8500,
     disponibilidad: "Lunes a viernes 12:00–20:00",
-    comunas: [10, 22],
+    home: 10,
+    radio_km: 5,
+    calles: ["Vicuña Mackenna", "Walker Martínez"],
     destacado: 0,
     rating: 4.7,
     count: 25,
@@ -124,10 +149,12 @@ const walkers = [
     email: "nicolas@paseopatitas.cl",
     nombre: "Nicolás Castillo",
     telefono: "+56932111116",
-    descripcion: "Santiago y Estación Central. Rutas por parques y calles tranquilas.",
+    descripcion: "Santiago centro. Rutas por parques y calles tranquilas.",
     precio: 10000,
     disponibilidad: "Lunes a viernes 6:30–9:30 y 18:00–21:00",
-    comunas: [1, 6],
+    home: 1,
+    radio_km: 4,
+    calles: ["Alameda", "Parque Forestal"],
     destacado: 0,
     rating: 4.5,
     count: 40,
@@ -140,7 +167,9 @@ const walkers = [
     descripcion: "Ñuñoa y Macul. Estudio vet y cuido el ritmo de cada perro.",
     precio: 9500,
     disponibilidad: "Miércoles a domingo 10:00–16:00",
-    comunas: [20, 18],
+    home: 20,
+    radio_km: 3.5,
+    calles: ["Irarrázaval", "Av. Macul"],
     destacado: 0,
     rating: 4.3,
     count: 12,
@@ -153,7 +182,9 @@ const walkers = [
     descripcion: "Recoleta e Independencia. Paseos urbanos, recojo y dejo en tu casa.",
     precio: 7500,
     disponibilidad: "Lunes a sábado 7:00–12:00",
-    comunas: [27, 8],
+    home: 27,
+    radio_km: 4,
+    calles: ["Av. Recoleta", "Independencia"],
     destacado: 0,
     rating: 4.2,
     count: 9,
@@ -166,7 +197,9 @@ const walkers = [
     descripcion: "Vitacura y Lo Barnechea. Experiencia con razas grandes y senderos de cerro suave.",
     precio: 14000,
     disponibilidad: "Lunes a viernes 8:00–17:00",
-    comunas: [32, 15],
+    home: 32,
+    radio_km: 6,
+    calles: ["Av. Vitacura", "Alonso de Córdova"],
     destacado: 1,
     rating: 4.9,
     count: 55,
@@ -179,7 +212,9 @@ const walkers = [
     descripcion: "Quilicura y Huechuraba. Partidas temprano, ideal si trabajai en oficina.",
     precio: 8000,
     disponibilidad: "Lunes a viernes 6:00–10:00",
-    comunas: [25, 7],
+    home: 25,
+    radio_km: 5,
+    calles: ["Av. Lo Marcoleta", "San Luis"],
     destacado: 0,
     rating: 4.1,
     count: 7,
@@ -189,12 +224,19 @@ const walkers = [
 
 const insertPaseador = db.prepare(
   `INSERT INTO paseadores
-    (user_id, descripcion, precio_clp, disponibilidad, destacado, estado_verificacion, proveedor_verificacion, paseos_completados)
-   VALUES (?, ?, ?, ?, ?, 'aprobado', 'seed', ?)`
+    (user_id, descripcion, precio_clp, disponibilidad, destacado, estado_verificacion, proveedor_verificacion,
+     paseos_completados, direccion_privada, lat, lng, radio_km, calles_json)
+   VALUES (?, ?, ?, ?, ?, 'aprobado', 'seed', ?, ?, ?, ?, ?, ?)`
 );
-const insertPC = db.prepare("INSERT OR IGNORE INTO paseador_comunas (paseador_id, comuna_id) VALUES (?, ?)");
+const updateZona = db.prepare(
+  `UPDATE paseadores
+   SET descripcion=?, precio_clp=?, disponibilidad=?, destacado=?, paseos_completados=?,
+       direccion_privada=?, lat=?, lng=?, radio_km=?, calles_json=?
+   WHERE id=?`
+);
 
 for (const w of walkers) {
+  const home = comunaById(w.home);
   const uid = upsertUser({
     email: w.email,
     password_hash: hash,
@@ -204,12 +246,43 @@ for (const w of walkers) {
     calificacion_promedio: w.rating,
     calificacion_count: w.count,
   });
+  const zona = {
+    direccion: `Casa demo, ${home.nombre}`,
+    lat: home.lat,
+    lng: home.lng,
+    radio_km: w.radio_km,
+    calles: JSON.stringify(callesCerca(home, w.calles)),
+  };
   const exists = db.prepare("SELECT id FROM paseadores WHERE user_id = ?").get(uid);
-  let pid = exists?.id;
-  if (!pid) {
-    pid = lastId(insertPaseador.run(uid, w.descripcion, w.precio, w.disponibilidad, w.destacado, w.paseos));
+  if (!exists) {
+    insertPaseador.run(
+      uid,
+      w.descripcion,
+      w.precio,
+      w.disponibilidad,
+      w.destacado,
+      w.paseos,
+      zona.direccion,
+      zona.lat,
+      zona.lng,
+      zona.radio_km,
+      zona.calles
+    );
+  } else {
+    updateZona.run(
+      w.descripcion,
+      w.precio,
+      w.disponibilidad,
+      w.destacado,
+      w.paseos,
+      zona.direccion,
+      zona.lat,
+      zona.lng,
+      zona.radio_km,
+      zona.calles,
+      exists.id
+    );
   }
-  for (const cid of w.comunas) insertPC.run(pid, cid);
 }
 
 const pendingUid = upsertUser({
@@ -220,15 +293,10 @@ const pendingUid = upsertUser({
   rol: "paseador",
 });
 if (!db.prepare("SELECT id FROM paseadores WHERE user_id = ?").get(pendingUid)) {
-  const pid = lastId(
-    db
-      .prepare(
-        `INSERT INTO paseadores (user_id, descripcion, precio_clp, disponibilidad, estado_verificacion, proveedor_verificacion)
-         VALUES (?, ?, ?, ?, 'pendiente', 'mock')`
-      )
-      .run(pendingUid, "Paseador nuevo en San Miguel, esperando aprobación.", 7000, "Fines de semana")
-  );
-  insertPC.run(pid, 30);
+  db.prepare(
+    `INSERT INTO paseadores (user_id, descripcion, precio_clp, disponibilidad, estado_verificacion, proveedor_verificacion)
+     VALUES (?, ?, ?, ?, 'pendiente', 'mock')`
+  ).run(pendingUid, "Paseador nuevo en San Miguel, esperando aprobación.", 7000, "Fines de semana");
 }
 
 const negocios = [

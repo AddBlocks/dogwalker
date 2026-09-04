@@ -4,6 +4,7 @@ import { db, lastId } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { scheduleIdPurge } from "../services/retention.js";
 import { decryptBuffer } from "../services/encryption.js";
+import { eliminarCuenta } from "../services/cuentas.js";
 
 export const adminRouter = Router();
 adminRouter.use(auth(true), requireRol("admin"));
@@ -26,6 +27,11 @@ adminRouter.get("/paseadores", (_req, res) => {
         cedula_reverso: Boolean(p.cedula_reverso),
         selfie: Boolean(p.selfie),
       },
+      direccion_privada: undefined,
+      lat: undefined,
+      lng: undefined,
+      calles_json: undefined,
+      radio_km: p.radio_km,
       cedula_frente: undefined,
       cedula_reverso: undefined,
       selfie: undefined,
@@ -178,6 +184,26 @@ adminRouter.put("/anuncios/:id", (req, res) => {
     next.activo ? 1 : 0,
     a.id
   );
+  res.json({ ok: true });
+});
+
+adminRouter.get("/usuarios", (_req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT u.id, u.email, u.nombre, u.telefono, u.rol, u.created_at, u.calificacion_promedio,
+              p.id AS paseador_id, p.estado_verificacion
+       FROM users u
+       LEFT JOIN paseadores p ON p.user_id = u.id
+       WHERE u.deleted_at IS NULL AND u.rol IN ('dueno','paseador')
+       ORDER BY u.created_at DESC`
+    )
+    .all();
+  res.json(rows);
+});
+
+adminRouter.delete("/usuarios/:id", (req, res) => {
+  const result = eliminarCuenta(req.params.id, { actorId: req.user.id });
+  if (result.error) return res.status(result.status).json({ error: result.error });
   res.json({ ok: true });
 });
 

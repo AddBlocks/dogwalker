@@ -32,7 +32,7 @@ export default function PublicarSolicitud() {
   return (
     <form onSubmit={onSubmit} className="px-4 py-5 space-y-3">
       <h1 className="font-display text-2xl text-bosque">Publicar solicitud de paseo</h1>
-      <p className="text-sm text-tinta/70">Los paseadores de esa comuna pueden tomarla.</p>
+      <p className="text-sm text-tinta/70">La ven los paseadores cuya zona de km cubre esa comuna.</p>
       <select className="w-full rounded-xl border border-arena px-3 py-2" value={form.comuna_id} onChange={(e) => setForm({ ...form, comuna_id: Number(e.target.value) })}>
         {comunas.map((c) => (
           <option key={c.id} value={c.id}>{c.nombre}</option>

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, lastId } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
+import { haversineKm } from "../services/geocode.js";
 
 export const solicitudesRouter = Router();
 
@@ -57,22 +58,30 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
     return res.json(rows);
   }
   if (req.user.rol === "paseador") {
+    const zona = db
+      .prepare("SELECT lat, lng, radio_km, estado_verificacion FROM paseadores WHERE user_id = ?")
+      .get(req.user.id);
     const rows = db
       .prepare(
-        `SELECT s.*, c.nombre AS comuna, d.nombre AS dueno_nombre, d.telefono AS dueno_telefono,
+        `SELECT s.*, c.nombre AS comuna, c.lat AS comuna_lat, c.lng AS comuna_lng,
+                d.nombre AS dueno_nombre, d.telefono AS dueno_telefono,
                 (SELECT id FROM paseos WHERE solicitud_id = s.id ORDER BY id DESC LIMIT 1) AS paseo_id
          FROM solicitudes s
          JOIN comunas c ON c.id = s.comuna_id
          JOIN users d ON d.id = s.dueno_id
-         WHERE s.paseador_id = ? OR (s.estado = 'abierta' AND s.comuna_id IN (
-           SELECT pc.comuna_id FROM paseador_comunas pc
-           JOIN paseadores p ON p.id = pc.paseador_id
-           WHERE p.user_id = ? AND p.estado_verificacion = 'aprobado'
-         ))
+         WHERE s.paseador_id = ? OR s.estado = 'abierta'
          ORDER BY CASE s.estado WHEN 'pendiente' THEN 0 WHEN 'abierta' THEN 1 ELSE 2 END, s.created_at DESC`
       )
-      .all(req.user.id, req.user.id)
-      .map((s) => ({
+      .all(req.user.id)
+      .filter((s) => {
+        if (s.paseador_id === req.user.id) return true;
+        if (s.estado !== "abierta") return false;
+        if (!zona || zona.estado_verificacion !== "aprobado" || zona.lat == null || zona.lng == null || !zona.radio_km) {
+          return false;
+        }
+        return haversineKm({ lat: zona.lat, lng: zona.lng }, { lat: s.comuna_lat, lng: s.comuna_lng }) <= Number(zona.radio_km);
+      })
+      .map(({ comuna_lat, comuna_lng, ...s }) => ({
         ...s,
         dueno_telefono: s.estado === "aceptada" && s.paseador_id === req.user.id ? s.dueno_telefono : null,
       }));

@@ -23,8 +23,11 @@ export default function WalkerCard({ walker }) {
         </div>
         <p className="font-bold text-bosque-claro whitespace-nowrap">{clp(walker.precio_clp)}</p>
       </div>
-      {walker.comunas?.length > 0 && (
-        <p className="text-xs text-tinta/50 mt-2">{walker.comunas.map((c) => c.nombre).join(" · ")}</p>
+      {walker.radio_km && (
+        <p className="text-xs text-tinta/50 mt-2">
+          Zona de {walker.radio_km} km
+          {walker.calles?.length ? ` · ${walker.calles.map((c) => c.nombre || c).join(" · ")}` : ""}
+        </p>
       )}
     </Link>
   );

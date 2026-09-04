@@ -55,6 +55,11 @@ export function migrate() {
       selfie TEXT,
       docs_eliminar_at TEXT,
       paseos_completados INTEGER DEFAULT 0,
+      direccion_privada TEXT,
+      lat REAL,
+      lng REAL,
+      radio_km REAL,
+      calles_json TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -168,6 +173,7 @@ export function migrate() {
     );
   `);
   migratePaseoTracking();
+  migrateZonaPaseo();
 }
 
 function tableSql(name) {
@@ -220,6 +226,14 @@ function migratePaseoTracking() {
     ALTER TABLE paseos_mig RENAME TO paseos;
   `);
   db.exec("PRAGMA foreign_keys = ON");
+}
+
+function migrateZonaPaseo() {
+  if (!hasColumn("paseadores", "direccion_privada")) db.exec("ALTER TABLE paseadores ADD COLUMN direccion_privada TEXT");
+  if (!hasColumn("paseadores", "lat")) db.exec("ALTER TABLE paseadores ADD COLUMN lat REAL");
+  if (!hasColumn("paseadores", "lng")) db.exec("ALTER TABLE paseadores ADD COLUMN lng REAL");
+  if (!hasColumn("paseadores", "radio_km")) db.exec("ALTER TABLE paseadores ADD COLUMN radio_km REAL");
+  if (!hasColumn("paseadores", "calles_json")) db.exec("ALTER TABLE paseadores ADD COLUMN calles_json TEXT");
 }
 
 export function lastId(result) {

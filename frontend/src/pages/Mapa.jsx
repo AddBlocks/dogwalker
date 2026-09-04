@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } from "react-leaflet";
+import { useEffect, useState } from "react";
+import { MapContainer, TileLayer, Circle, Marker, Popup, CircleMarker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { Link } from "react-router-dom";
 import { api, clp } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import AdSlot from "../components/AdSlot";
@@ -27,15 +27,9 @@ function FlyTo({ center }) {
   return null;
 }
 
-function offset(lat, lng, i) {
-  const a = i * 0.9;
-  return [lat + Math.sin(a) * 0.004, lng + Math.cos(a) * 0.004];
-}
-
 export default function Mapa() {
   const { user } = useAuth();
   const [comunas, setComunas] = useState([]);
-  const [geo, setGeo] = useState(null);
   const [walkers, setWalkers] = useState([]);
   const [filtros, setFiltros] = useState({ comuna: "", precio_max: "", calificacion_min: "" });
   const [ad, setAd] = useState(null);
@@ -44,7 +38,6 @@ export default function Mapa() {
 
   useEffect(() => {
     api("/api/comunas").then(setComunas);
-    api("/api/comunas/geojson").then(setGeo);
   }, []);
 
   useEffect(() => {
@@ -71,23 +64,6 @@ export default function Mapa() {
     });
   }, []);
 
-  const markers = useMemo(() => {
-    const count = {};
-    return walkers.flatMap((w) => {
-      const base = w.comunas?.[0];
-      if (!base) return [];
-      if (filtros.comuna) {
-        const match = w.comunas.find((c) => String(c.id) === String(filtros.comuna));
-        if (!match) return [];
-        const key = match.id;
-        count[key] = (count[key] || 0) + 1;
-        return [{ w, pos: offset(match.lat, match.lng, count[key]) }];
-      }
-      count[base.id] = (count[base.id] || 0) + 1;
-      return [{ w, pos: offset(base.lat, base.lng, count[base.id]) }];
-    });
-  }, [walkers, filtros.comuna]);
-
   function onComuna(id) {
     const c = comunas.find((x) => String(x.id) === String(id));
     setFiltros((f) => ({ ...f, comuna: id }));
@@ -97,24 +73,62 @@ export default function Mapa() {
   return (
     <div className="flex flex-col">
       <MapContainer center={center} zoom={12} className="h-[calc(100dvh-19.5rem)] min-h-[42vh] w-full" zoomControl={false}>
-        <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {geo && (
-          <GeoJSON
-            data={geo}
-            style={() => ({ color: "#2D6A4F", weight: 1, fillColor: "#40916C", fillOpacity: 0.12 })}
-          />
+        <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        {walkers.map((w) =>
+          w.lat && w.lng && w.radio_km ? (
+            <Circle
+              key={`zona-${w.id}`}
+              center={[w.lat, w.lng]}
+              radius={Number(w.radio_km) * 1000}
+              pathOptions={{
+                color: w.destacado ? "#C45C26" : "#8B4513",
+                weight: 2,
+                fillColor: w.destacado ? "#C45C26" : "#8B4513",
+                fillOpacity: 0.1,
+              }}
+            >
+              <Popup>
+                <p className="font-bold m-0">{w.nombre}</p>
+                <p className="m-0 text-sm">
+                  {clp(w.precio_clp)} · zona {w.radio_km} km
+                </p>
+                <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
+              </Popup>
+            </Circle>
+          ) : null
         )}
-        {markers.map(({ w, pos }) => (
-          <Marker key={w.id} position={pos} icon={pinIcon(w.destacado)}>
-            <Popup>
-              <p className="font-bold m-0">{w.nombre}</p>
-              {w.destacado && <p className="text-xs text-amber-700 m-0">Destacado</p>}
-              <Stars value={w.calificacion} />
-              <p className="m-0 text-sm">{clp(w.precio_clp)} · {w.paseos} paseos</p>
-              <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
-            </Popup>
-          </Marker>
-        ))}
+        {walkers.flatMap((w) =>
+          (w.calles || [])
+            .filter((c) => c.lat && c.lng)
+            .map((c) => (
+              <CircleMarker
+                key={`calle-${w.id}-${c.nombre}`}
+                center={[c.lat, c.lng]}
+                radius={6}
+                pathOptions={{ color: "#5C2C0E", fillColor: "#E9B44C", fillOpacity: 1, weight: 1 }}
+              >
+                <Tooltip>{c.nombre}</Tooltip>
+              </CircleMarker>
+            ))
+        )}
+        {walkers.map((w) =>
+          w.lat && w.lng ? (
+            <Marker key={w.id} position={[w.lat, w.lng]} icon={pinIcon(w.destacado)}>
+              <Popup>
+                <p className="font-bold m-0">{w.nombre}</p>
+                {w.destacado && <p className="text-xs text-amber-700 m-0">Destacado</p>}
+                <Stars value={w.calificacion} />
+                <p className="m-0 text-sm">
+                  {clp(w.precio_clp)} · zona {w.radio_km} km
+                </p>
+                {w.calles?.length > 0 && (
+                  <p className="m-0 text-xs">{w.calles.map((c) => c.nombre).join(" · ")}</p>
+                )}
+                <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
+              </Popup>
+            </Marker>
+          ) : null
+        )}
         <FlyTo center={center} />
       </MapContainer>
 
@@ -133,6 +147,12 @@ export default function Mapa() {
             </button>
           </div>
         </div>
+        {walkers.length === 0 && (
+          <p className="text-xs text-tinta/50">
+            Aún no hay paseadores con zona de km publicada
+            {user?.rol === "paseador" ? ". Completa tu dirección y radio en Mi oferta para aparecer." : "."}
+          </p>
+        )}
         {lista && (
           <div className="space-y-3 max-h-[28vh] overflow-auto">
             {walkers.map((w, i) => (
@@ -148,10 +168,10 @@ export default function Mapa() {
       <div className="sticky bottom-20 z-[500] bg-white border-t border-arena px-3 py-3 shadow-[0_-8px_24px_rgba(27,67,50,0.12)]">
         <div className="grid grid-cols-2 gap-2">
           <select className="col-span-2 rounded-xl border border-arena px-2 py-2 text-sm" value={filtros.comuna} onChange={(e) => onComuna(e.target.value)}>
-            <option value="">Todas las comunas</option>
+            <option value="">Todas las zonas</option>
             {comunas.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nombre}
+                Llegan a {c.nombre}
               </option>
             ))}
           </select>

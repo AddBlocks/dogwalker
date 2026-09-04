@@ -55,12 +55,6 @@ authRouter.get("/me", auth(true), (req, res) => {
   if (req.user.rol === "paseador") {
     paseador = db.prepare("SELECT * FROM paseadores WHERE user_id = ?").get(req.user.id);
     if (paseador) {
-      const comunas = db
-        .prepare(
-          `SELECT c.id, c.nombre FROM paseador_comunas pc
-           JOIN comunas c ON c.id = pc.comuna_id WHERE pc.paseador_id = ?`
-        )
-        .all(paseador.id);
       paseador = {
         id: paseador.id,
         descripcion: paseador.descripcion,
@@ -68,7 +62,16 @@ authRouter.get("/me", auth(true), (req, res) => {
         disponibilidad: paseador.disponibilidad,
         destacado: !!paseador.destacado,
         estado_verificacion: paseador.estado_verificacion,
-        comunas,
+        direccion_privada: paseador.direccion_privada,
+        radio_km: paseador.radio_km,
+        tiene_zona: Boolean(paseador.lat && paseador.lng && paseador.radio_km),
+        calles: (() => {
+          try {
+            return JSON.parse(paseador.calles_json || "[]").map((c) => c.nombre);
+          } catch {
+            return [];
+          }
+        })(),
       };
     }
   }

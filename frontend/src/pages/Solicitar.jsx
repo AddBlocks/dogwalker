@@ -7,19 +7,26 @@ export default function Solicitar() {
   const { id } = useParams();
   const nav = useNavigate();
   const [w, setW] = useState(null);
+  const [comunas, setComunas] = useState([]);
   const [form, setForm] = useState({ comuna_id: "", horario: "", frecuencia: FRECUENCIAS[0], monto_clp: "", mensaje: "" });
   const [error, setError] = useState("");
 
   useEffect(() => {
+    api("/api/comunas").then(setComunas);
     api(`/api/paseadores/${id}`).then((data) => {
       setW(data);
       setForm((f) => ({
         ...f,
-        comuna_id: data.comunas[0]?.id || "",
         monto_clp: data.precio_clp || "",
       }));
     });
   }, [id]);
+
+  useEffect(() => {
+    if (comunas.length && !form.comuna_id) {
+      setForm((f) => ({ ...f, comuna_id: comunas[0].id }));
+    }
+  }, [comunas, form.comuna_id]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -40,8 +47,9 @@ export default function Solicitar() {
     <form onSubmit={onSubmit} className="px-4 py-5 space-y-3">
       <h1 className="font-display text-2xl text-bosque">Solicitar a {w.nombre}</h1>
       <p className="text-sm">Precio referencial: {clp(w.precio_clp)}</p>
+      {w.radio_km && <p className="text-sm">Pasea hasta {w.radio_km} km desde su zona.</p>}
       <select className="w-full rounded-xl border border-arena px-3 py-2" value={form.comuna_id} onChange={(e) => setForm({ ...form, comuna_id: Number(e.target.value) })}>
-        {w.comunas.map((c) => (
+        {comunas.map((c) => (
           <option key={c.id} value={c.id}>{c.nombre}</option>
         ))}
       </select>

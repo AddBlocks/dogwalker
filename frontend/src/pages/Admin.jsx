@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
 import { api, apiBlob } from "../lib/api";
 
-const TABS = ["Paseadores", "Comercios", "Anuncios", "Métricas"];
+const TABS = ["Usuarios", "Paseadores", "Comercios", "Anuncios", "Métricas"];
+
+const ROL_LABEL = { dueno: "Dueño", paseador: "Paseador", admin: "Admin" };
+
+async function borrarUsuario(userId, nombre) {
+  if (!confirm(`¿Eliminar la cuenta de ${nombre}? Se borran sus datos personales y no podrá entrar.`)) return false;
+  await api(`/api/admin/usuarios/${userId}`, { method: "DELETE" });
+  return true;
+}
 
 export default function Admin() {
-  const [tab, setTab] = useState("Paseadores");
+  const [tab, setTab] = useState("Usuarios");
   return (
     <div className="px-4 py-5">
       <h1 className="font-display text-2xl text-bosque">Panel administrador</h1>
@@ -15,6 +23,7 @@ export default function Admin() {
           </button>
         ))}
       </div>
+      {tab === "Usuarios" && <UsuariosAdmin />}
       {tab === "Paseadores" && <PaseadoresAdmin />}
       {tab === "Comercios" && <ComerciosAdmin />}
       {tab === "Anuncios" && <AnunciosAdmin />}
@@ -23,15 +32,83 @@ export default function Admin() {
   );
 }
 
+function UsuariosAdmin() {
+  const [rows, setRows] = useState([]);
+  const [q, setQ] = useState("");
+  const [error, setError] = useState("");
+
+  function load() {
+    api("/api/admin/usuarios").then(setRows);
+  }
+  useEffect(load, []);
+
+  const filtrados = rows.filter((u) => {
+    const t = q.trim().toLowerCase();
+    if (!t) return true;
+    return [u.nombre, u.email, u.telefono, ROL_LABEL[u.rol]].filter(Boolean).join(" ").toLowerCase().includes(t);
+  });
+
+  async function onDelete(u) {
+    setError("");
+    try {
+      if (await borrarUsuario(u.id, u.nombre)) load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <input
+        className="w-full rounded-xl border border-arena px-3 py-2 text-sm"
+        placeholder="Buscar por nombre, correo o celular"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {error && <p className="text-sm text-greda">{error}</p>}
+      {filtrados.length === 0 && <p className="text-sm text-tinta/60">No hay usuarios para mostrar.</p>}
+      {filtrados.map((u) => (
+        <article key={u.id} className="bg-white border border-arena rounded-2xl p-3">
+          <p className="font-bold">{u.nombre}</p>
+          <p className="text-xs">
+            {ROL_LABEL[u.rol] || u.rol} · {u.email} · {u.telefono || "sin celular"}
+          </p>
+          {u.rol === "paseador" && (
+            <p className="text-xs text-tinta/50">Verificación: {u.estado_verificacion || "—"}</p>
+          )}
+          <button
+            className="mt-2 text-xs font-bold border border-greda text-greda px-3 py-1 rounded-full"
+            onClick={() => onDelete(u)}
+          >
+            Eliminar usuario
+          </button>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function PaseadoresAdmin() {
   const [rows, setRows] = useState([]);
   const [viendo, setViendo] = useState(null);
+  const [error, setError] = useState("");
   function load() {
     api("/api/admin/paseadores").then(setRows);
   }
   useEffect(load, []);
+
+  async function onDelete(p) {
+    setError("");
+    try {
+      if (await borrarUsuario(p.user_id, p.nombre)) load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   return (
     <div className="space-y-3">
+      {error && <p className="text-sm text-greda">{error}</p>}
       {rows.length === 0 && <p className="text-sm text-tinta/60">Cuando un paseador se registre, aparece acá para revisión.</p>}
       {rows.map((p) => (
         <article key={p.id} className="bg-white border border-arena rounded-2xl p-3">
@@ -39,6 +116,7 @@ function PaseadoresAdmin() {
           <p className="text-xs">{p.email} · {p.telefono || "sin celular"} · {p.estado_verificacion} {p.destacado ? "· Destacado" : ""}</p>
           <p className="text-xs text-tinta/50">Proveedor: {p.proveedor_verificacion || "—"} {p.tiene_documentos ? "· documentos subidos" : "· sin documentos"}</p>
           <p className="text-sm">{p.descripcion}</p>
+          <p className="text-xs text-tinta/50">{p.radio_km ? `Zona de ${p.radio_km} km (la dirección queda privada)` : "Sin zona de paseo"}</p>
           <div className="flex flex-wrap gap-2 mt-2 text-xs font-bold">
             <button className="border border-bosque text-bosque px-3 py-1 rounded-full" onClick={() => setViendo(viendo === p.id ? null : p.id)}>
               {viendo === p.id ? "Ocultar documentos" : "Ver documentos"}
@@ -58,6 +136,9 @@ function PaseadoresAdmin() {
               onClick={() => api(`/api/admin/paseadores/${p.id}/destacado`, { method: "POST", body: JSON.stringify({ destacado: !p.destacado }) }).then(load)}
             >
               {p.destacado ? "Quitar destacado" : "Marcar destacado"}
+            </button>
+            <button className="border border-greda text-greda px-3 py-1 rounded-full" onClick={() => onDelete(p)}>
+              Eliminar usuario
             </button>
           </div>
           {viendo === p.id && <DocumentosPaseador paseador={p} />}
