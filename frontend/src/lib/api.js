@@ -20,5 +20,17 @@ export async function api(path, opts = {}) {
   return data;
 }
 
+export async function apiBlob(path) {
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(path, { headers });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "No se pudo abrir el documento.");
+  }
+  return URL.createObjectURL(await res.blob());
+}
+
 export const clp = (n) =>
   new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n || 0);

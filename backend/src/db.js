@@ -88,8 +88,19 @@ export function migrate() {
       fecha TEXT NOT NULL,
       monto_clp INTEGER NOT NULL,
       estado TEXT DEFAULT 'acordado'
-        CHECK(estado IN ('acordado','completado','cancelado')),
+        CHECK(estado IN ('acordado','en_curso','completado','cancelado')),
+      iniciado_at TEXT,
+      terminado_at TEXT,
+      distancia_m REAL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS paseo_puntos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      paseo_id INTEGER NOT NULL REFERENCES paseos(id) ON DELETE CASCADE,
+      lat REAL NOT NULL,
+      lng REAL NOT NULL,
+      recorded_at TEXT DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS resenas (
@@ -156,6 +167,59 @@ export function migrate() {
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
+  migratePaseoTracking();
+}
+
+function tableSql(name) {
+  return db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name)?.sql || "";
+}
+
+function hasColumn(table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+}
+
+/** Bases ya creadas sin en_curso / puntos GPS. */
+function migratePaseoTracking() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS paseo_puntos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      paseo_id INTEGER NOT NULL REFERENCES paseos(id) ON DELETE CASCADE,
+      lat REAL NOT NULL,
+      lng REAL NOT NULL,
+      recorded_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS paseo_puntos_paseo_idx ON paseo_puntos(paseo_id);
+  `);
+  if (!hasColumn("paseos", "iniciado_at")) db.exec("ALTER TABLE paseos ADD COLUMN iniciado_at TEXT");
+  if (!hasColumn("paseos", "terminado_at")) db.exec("ALTER TABLE paseos ADD COLUMN terminado_at TEXT");
+  if (!hasColumn("paseos", "distancia_m")) db.exec("ALTER TABLE paseos ADD COLUMN distancia_m REAL DEFAULT 0");
+
+  const sql = tableSql("paseos");
+  if (sql.includes("en_curso")) return;
+
+  db.exec("PRAGMA foreign_keys = OFF");
+  db.exec(`
+    CREATE TABLE paseos_mig (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      solicitud_id INTEGER REFERENCES solicitudes(id),
+      dueno_id INTEGER NOT NULL REFERENCES users(id),
+      paseador_id INTEGER NOT NULL REFERENCES users(id),
+      comuna_id INTEGER NOT NULL REFERENCES comunas(id),
+      fecha TEXT NOT NULL,
+      monto_clp INTEGER NOT NULL,
+      estado TEXT DEFAULT 'acordado'
+        CHECK(estado IN ('acordado','en_curso','completado','cancelado')),
+      iniciado_at TEXT,
+      terminado_at TEXT,
+      distancia_m REAL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    INSERT INTO paseos_mig (id, solicitud_id, dueno_id, paseador_id, comuna_id, fecha, monto_clp, estado, iniciado_at, terminado_at, distancia_m, created_at)
+    SELECT id, solicitud_id, dueno_id, paseador_id, comuna_id, fecha, monto_clp, estado, iniciado_at, terminado_at, distancia_m, created_at FROM paseos;
+    DROP TABLE paseos;
+    ALTER TABLE paseos_mig RENAME TO paseos;
+  `);
+  db.exec("PRAGMA foreign_keys = ON");
 }
 
 export function lastId(result) {

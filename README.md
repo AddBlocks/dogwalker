@@ -29,16 +29,15 @@ npm run dev
 
 Abre http://localhost:5173
 
-### Cuentas de prueba
+### Cuenta inicial
+
+Después de `npm run seed` o `npm run reset` solo queda el administrador. Dueños y paseadores se registran en la app con datos reales.
 
 | Rol | Correo | Contraseña |
 | --- | --- | --- |
 | Administrador | admin@paseopatitas.cl | PaseoAdmin123 |
-| Dueña | dueno@paseopatitas.cl | PaseoDemo123 |
-| Paseadora aprobada | camila@paseopatitas.cl | PaseoDemo123 |
-| Paseador pendiente | pendiente@paseopatitas.cl | PaseoDemo123 |
 
-Las otras 9 paseadoras de semilla usan el mismo password `PaseoDemo123`.
+Para volver a cargar cuentas ficticias de desarrollo: `npm run seed:demo`.
 
 ## Qué incluye cada fase
 

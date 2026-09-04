@@ -1,7 +1,9 @@
 import { Router } from "express";
+import fs from "node:fs";
 import { db, lastId } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { scheduleIdPurge } from "../services/retention.js";
+import { decryptBuffer } from "../services/encryption.js";
 
 export const adminRouter = Router();
 adminRouter.use(auth(true), requireRol("admin"));
@@ -19,12 +21,47 @@ adminRouter.get("/paseadores", (_req, res) => {
       ...p,
       destacado: !!p.destacado,
       tiene_documentos: Boolean(p.cedula_frente || p.cedula_reverso || p.selfie),
+      docs: {
+        cedula_frente: Boolean(p.cedula_frente),
+        cedula_reverso: Boolean(p.cedula_reverso),
+        selfie: Boolean(p.selfie),
+      },
       cedula_frente: undefined,
       cedula_reverso: undefined,
       selfie: undefined,
     }));
   res.json(rows);
 });
+
+adminRouter.get("/paseadores/:id/documento/:tipo", (req, res) => {
+  const col = { cedula_frente: "cedula_frente", cedula_reverso: "cedula_reverso", selfie: "selfie" }[req.params.tipo];
+  if (!col) return res.status(400).json({ error: "Tipo de documento inválido." });
+  const p = db.prepare("SELECT * FROM paseadores WHERE id = ?").get(Number(req.params.id));
+  if (!p) return res.status(404).json({ error: "Paseador no encontrado." });
+  const filePath = p[col];
+  if (!filePath || !fs.existsSync(filePath)) {
+    return res.status(404).json({
+      error: "Ese documento no está disponible. Si ya lo aprobaste, se borra a los 30 días.",
+    });
+  }
+  try {
+    const buf = decryptBuffer(fs.readFileSync(filePath));
+    res.setHeader("Content-Type", sniffImage(buf));
+    res.setHeader("Cache-Control", "no-store");
+    res.send(buf);
+  } catch {
+    res.status(500).json({ error: "No se pudo abrir el documento cifrado." });
+  }
+});
+
+function sniffImage(buf) {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+  if (buf.length >= 12 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") {
+    return "image/webp";
+  }
+  return "image/jpeg";
+}
 
 adminRouter.post("/paseadores/:id/aprobar", (req, res) => {
   const p = db.prepare("SELECT * FROM paseadores WHERE id = ?").get(Number(req.params.id));

@@ -10,7 +10,8 @@ users (dueno | paseador | admin)
 paseadores 1—1 users
 paseador_comunas N—N
 solicitudes (abierta | pendiente | aceptada | rechazada | cancelada)
-paseos (acordado | completado | cancelado)
+paseos (acordado | en_curso | completado | cancelado)
+paseo_puntos (recorrido GPS del paseador, de principio a fin)
 resenas (dueno_a_paseador: 5 preguntas; paseador_a_dueno: 1)
 comercios + comercio_resenas
 anuncios + anuncio_eventos
@@ -98,9 +99,21 @@ CREATE TABLE paseos (
   fecha DATE NOT NULL,
   monto_clp INTEGER NOT NULL,
   estado TEXT DEFAULT 'acordado'
-    CHECK (estado IN ('acordado','completado','cancelado')),
+    CHECK (estado IN ('acordado','en_curso','completado','cancelado')),
+  iniciado_at TIMESTAMPTZ,
+  terminado_at TIMESTAMPTZ,
+  distancia_m NUMERIC,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE TABLE paseo_puntos (
+  id BIGSERIAL PRIMARY KEY,
+  paseo_id BIGINT NOT NULL REFERENCES paseos(id) ON DELETE CASCADE,
+  lat DOUBLE PRECISION NOT NULL,
+  lng DOUBLE PRECISION NOT NULL,
+  recorded_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX paseo_puntos_paseo_idx ON paseo_puntos (paseo_id);
 
 CREATE TABLE resenas (
   id BIGSERIAL PRIMARY KEY,

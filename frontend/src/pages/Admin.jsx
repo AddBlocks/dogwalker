@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { api, apiBlob } from "../lib/api";
 
 const TABS = ["Paseadores", "Comercios", "Anuncios", "Métricas"];
 
@@ -25,18 +25,24 @@ export default function Admin() {
 
 function PaseadoresAdmin() {
   const [rows, setRows] = useState([]);
+  const [viendo, setViendo] = useState(null);
   function load() {
     api("/api/admin/paseadores").then(setRows);
   }
   useEffect(load, []);
   return (
     <div className="space-y-3">
+      {rows.length === 0 && <p className="text-sm text-tinta/60">Cuando un paseador se registre, aparece acá para revisión.</p>}
       {rows.map((p) => (
         <article key={p.id} className="bg-white border border-arena rounded-2xl p-3">
           <p className="font-bold">{p.nombre}</p>
-          <p className="text-xs">{p.email} · {p.estado_verificacion} {p.destacado ? "· Destacado" : ""}</p>
+          <p className="text-xs">{p.email} · {p.telefono || "sin celular"} · {p.estado_verificacion} {p.destacado ? "· Destacado" : ""}</p>
+          <p className="text-xs text-tinta/50">Proveedor: {p.proveedor_verificacion || "—"} {p.tiene_documentos ? "· documentos subidos" : "· sin documentos"}</p>
           <p className="text-sm">{p.descripcion}</p>
           <div className="flex flex-wrap gap-2 mt-2 text-xs font-bold">
+            <button className="border border-bosque text-bosque px-3 py-1 rounded-full" onClick={() => setViendo(viendo === p.id ? null : p.id)}>
+              {viendo === p.id ? "Ocultar documentos" : "Ver documentos"}
+            </button>
             {p.estado_verificacion !== "aprobado" && (
               <button className="bg-bosque text-crema px-3 py-1 rounded-full" onClick={() => api(`/api/admin/paseadores/${p.id}/aprobar`, { method: "POST" }).then(load)}>
                 Aprobar
@@ -54,7 +60,65 @@ function PaseadoresAdmin() {
               {p.destacado ? "Quitar destacado" : "Marcar destacado"}
             </button>
           </div>
+          {viendo === p.id && <DocumentosPaseador paseador={p} />}
         </article>
+      ))}
+    </div>
+  );
+}
+
+const DOC_LABELS = [
+  ["cedula_frente", "Cédula — frente"],
+  ["cedula_reverso", "Cédula — reverso"],
+  ["selfie", "Selfie"],
+];
+
+function DocumentosPaseador({ paseador }) {
+  const [imgs, setImgs] = useState({});
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let cancel = false;
+    const urls = [];
+    setError("");
+    setImgs({});
+    (async () => {
+      try {
+        const next = {};
+        for (const [tipo] of DOC_LABELS) {
+          if (!paseador.docs?.[tipo]) continue;
+          const url = await apiBlob(`/api/admin/paseadores/${paseador.id}/documento/${tipo}`);
+          urls.push(url);
+          next[tipo] = url;
+        }
+        if (!cancel) setImgs(next);
+      } catch (e) {
+        if (!cancel) setError(e.message);
+      }
+    })();
+    return () => {
+      cancel = true;
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [paseador.id, paseador.docs]);
+
+  if (!paseador.tiene_documentos) {
+    return <p className="text-sm text-greda mt-3">Este paseador aún no sube cédula ni selfie.</p>;
+  }
+  return (
+    <div className="mt-3 space-y-2">
+      <p className="text-xs text-tinta/60">Revisa que la cédula coincida con la selfie y con el nombre de la cuenta. Después aprueba o rechaza.</p>
+      {error && <p className="text-sm text-greda">{error}</p>}
+      {DOC_LABELS.map(([tipo, label]) => (
+        <figure key={tipo} className="bg-crema rounded-xl p-2">
+          <figcaption className="text-xs font-bold mb-1">{label}</figcaption>
+          {imgs[tipo] ? (
+            <img src={imgs[tipo]} alt={label} className="w-full max-h-80 object-contain rounded-lg bg-white" />
+          ) : paseador.docs?.[tipo] ? (
+            <p className="text-xs">Cargando…</p>
+          ) : (
+            <p className="text-xs text-tinta/50">No se subió este lado.</p>
+          )}
+        </figure>
       ))}
     </div>
   );

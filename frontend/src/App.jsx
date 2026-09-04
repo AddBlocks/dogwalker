@@ -12,6 +12,7 @@ import Solicitudes from "./pages/Solicitudes";
 import PublicarSolicitud from "./pages/PublicarSolicitud";
 import MiOferta from "./pages/MiOferta";
 import Paseos from "./pages/Paseos";
+import Recorrido from "./pages/Recorrido";
 import Resena from "./pages/Resena";
 import Directorio from "./pages/Directorio";
 import Comercio from "./pages/Comercio";
@@ -82,6 +83,14 @@ export default function App() {
           element={
             <Gate>
               <Paseos />
+            </Gate>
+          }
+        />
+        <Route
+          path="/paseos/:id"
+          element={
+            <Gate>
+              <Recorrido />
             </Gate>
           }
         />

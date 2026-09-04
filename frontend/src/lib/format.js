@@ -26,6 +26,7 @@ export function estadoLabel(estado) {
       rechazada: "Rechazada",
       cancelada: "Cancelada",
       acordado: "Acordado",
+      en_curso: "En curso",
       completado: "Completado",
       cancelado: "Cancelado",
       pendiente_verif: "En revisión",

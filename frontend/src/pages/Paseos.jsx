@@ -1,19 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, clp } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { estadoLabel } from "../lib/format";
 
 export default function Paseos() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   function load() {
     api("/api/paseos").then(setRows);
   }
   useEffect(load, []);
-
-  async function completar(id) {
-    await api(`/api/paseos/${id}/completar`, { method: "POST" });
-    load();
-  }
 
   return (
     <div className="px-4 py-5 space-y-3">
@@ -28,13 +25,29 @@ export default function Paseos() {
           {p.estado !== "cancelado" && (
             <p className="text-sm">Teléfonos: {p.dueno_telefono} / {p.paseador_telefono}</p>
           )}
-          {p.estado === "acordado" && (
-            <button className="mt-2 w-full bg-bosque text-crema rounded-xl py-2 font-bold" onClick={() => completar(p.id)}>
-              Marcar como terminado
-            </button>
+          {p.estado === "acordado" && user.rol === "paseador" && (
+            <p className="text-sm mt-2">Al cerrar el trato tenís que compartir el recorrido en la app.</p>
+          )}
+          {p.estado === "acordado" && user.rol === "dueno" && (
+            <p className="text-sm mt-2">El paseador va a compartir el GPS de principio a fin acá.</p>
+          )}
+          {["acordado", "en_curso", "completado"].includes(p.estado) && (
+            <Link
+              to={`/paseos/${p.id}`}
+              className={`mt-2 block text-center font-bold rounded-xl py-2 ${
+                p.estado === "en_curso" || (p.estado === "acordado" && user.rol === "paseador")
+                  ? "bg-greda text-white"
+                  : "bg-bosque text-crema"
+              }`}
+            >
+              {p.estado === "acordado" && user.rol === "paseador" && "Paseo iniciado"}
+              {p.estado === "acordado" && user.rol !== "paseador" && "Ver recorrido"}
+              {p.estado === "en_curso" && (user.rol === "paseador" ? "Paseo en curso · terminar" : "Ver recorrido en vivo")}
+              {p.estado === "completado" && "Ver recorrido completo"}
+            </Link>
           )}
           {p.puede_resenar && (
-            <Link to={`/resena/${p.id}`} className="mt-2 block text-center bg-greda text-white rounded-xl py-2 font-bold">
+            <Link to={`/resena/${p.id}`} className="mt-2 block text-center border border-bosque text-bosque rounded-xl py-2 font-bold">
               Dejar reseña
             </Link>
           )}

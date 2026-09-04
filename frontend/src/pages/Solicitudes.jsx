@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, clp } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { estadoLabel } from "../lib/format";
 
 export default function Solicitudes() {
   const { user } = useAuth();
+  const nav = useNavigate();
   const [rows, setRows] = useState([]);
   const [phones, setPhones] = useState(null);
 
@@ -16,7 +17,10 @@ export default function Solicitudes() {
 
   async function act(id, action) {
     const data = await api(`/api/solicitudes/${id}/${action}`, { method: "POST" });
-    if (data.telefonos) setPhones(data);
+    if (data.telefonos) {
+      setPhones(data);
+      if (data.paseo_id && action === "aceptar") nav(`/paseos/${data.paseo_id}`);
+    }
     load();
   }
 
@@ -35,7 +39,9 @@ export default function Solicitudes() {
           <p className="font-bold">Paseo aceptado</p>
           <p>Dueño: {phones.nombres.dueno} · {phones.telefonos.dueno || "sin número"}</p>
           <p>Paseador: {phones.nombres.paseador} · {phones.telefonos.paseador || "sin número"}</p>
-          <Link className="underline" to="/paseos">Ver paseos</Link>
+          <Link className="underline" to={phones.paseo_id ? `/paseos/${phones.paseo_id}` : "/paseos"}>
+            Compartir recorrido
+          </Link>
         </div>
       )}
       {rows.length === 0 && <p className="text-sm text-tinta/60">No hay solicitudes todavía.</p>}
@@ -49,9 +55,14 @@ export default function Solicitudes() {
           {user.rol === "dueno" && s.paseador_nombre && <p className="text-sm">Paseador: {s.paseador_nombre}</p>}
           {user.rol === "paseador" && <p className="text-sm">Dueño: {s.dueno_nombre}</p>}
           {s.estado === "aceptada" && (
-            <p className="text-sm bg-arena/50 rounded-xl p-2">
-              Teléfono: {user.rol === "dueno" ? s.paseador_telefono : s.dueno_telefono}
-            </p>
+            <>
+              <p className="text-sm bg-arena/50 rounded-xl p-2">
+                Teléfono: {user.rol === "dueno" ? s.paseador_telefono : s.dueno_telefono}
+              </p>
+              <Link to={s.paseo_id ? `/paseos/${s.paseo_id}` : "/paseos"} className="block text-center mt-2 bg-bosque text-crema rounded-xl py-2 font-bold">
+                {user.rol === "paseador" ? "Ir al recorrido" : "Ver recorrido del paseo"}
+              </Link>
+            </>
           )}
           {user.rol === "paseador" && (s.estado === "pendiente" || s.estado === "abierta") && (
             <div className="flex gap-2 pt-2">

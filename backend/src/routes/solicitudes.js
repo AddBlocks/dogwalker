@@ -41,7 +41,8 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
   if (req.user.rol === "dueno") {
     const rows = db
       .prepare(
-        `SELECT s.*, c.nombre AS comuna, u.nombre AS paseador_nombre, u.telefono AS paseador_telefono
+        `SELECT s.*, c.nombre AS comuna, u.nombre AS paseador_nombre, u.telefono AS paseador_telefono,
+                (SELECT id FROM paseos WHERE solicitud_id = s.id ORDER BY id DESC LIMIT 1) AS paseo_id
          FROM solicitudes s
          JOIN comunas c ON c.id = s.comuna_id
          LEFT JOIN users u ON u.id = s.paseador_id
@@ -58,7 +59,8 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
   if (req.user.rol === "paseador") {
     const rows = db
       .prepare(
-        `SELECT s.*, c.nombre AS comuna, d.nombre AS dueno_nombre, d.telefono AS dueno_telefono
+        `SELECT s.*, c.nombre AS comuna, d.nombre AS dueno_nombre, d.telefono AS dueno_telefono,
+                (SELECT id FROM paseos WHERE solicitud_id = s.id ORDER BY id DESC LIMIT 1) AS paseo_id
          FROM solicitudes s
          JOIN comunas c ON c.id = s.comuna_id
          JOIN users d ON d.id = s.dueno_id

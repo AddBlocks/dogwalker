@@ -35,6 +35,15 @@ const adminId = upsertUser({
   rol: "admin",
 });
 
+if (!process.argv.includes("--demo")) {
+  console.log("Semilla base lista (32 comunas + admin). Sin cuentas de prueba.");
+  console.log("Admin: admin@paseopatitas.cl / PaseoAdmin123");
+  console.log("Para datos ficticios: npm run seed:demo");
+  void adminId;
+  db.close();
+  process.exit(0);
+}
+
 const duenoId = upsertUser({
   email: "dueno@paseopatitas.cl",
   password_hash: hash,

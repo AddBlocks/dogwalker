@@ -66,7 +66,9 @@ export default function Login() {
           ¿No tenís cuenta? <Link className="text-greda font-bold" to="/registro">Regístrate</Link>
         </p>
         <p className="text-xs text-center text-tinta/50">
-          Demo: dueno@paseopatitas.cl · PaseoDemo123
+          <p className="text-xs text-center text-tinta/50">
+            ¿Eres paseador? Regístrate y espera la aprobación para aparecer en el mapa.
+          </p>
         </p>
       </form>
     </div>
