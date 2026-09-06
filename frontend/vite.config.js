@@ -24,6 +24,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.+\.tile\.openstreetmap\.org\/.*/i,
@@ -38,10 +39,25 @@ export default defineConfig({
     }),
   ],
   server: {
+    host: true,
     port: 5173,
     allowedHosts: true,
     proxy: {
-      "/api": "http://localhost:4000",
+      "/api": {
+        target: "http://127.0.0.1:4000",
+        changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000,
+        configure(proxy) {
+          proxy.on("error", (err, _req, res) => {
+            console.error("[vite proxy]", err.message);
+            if (res && !res.headersSent && typeof res.writeHead === "function") {
+              res.writeHead(502, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "La API no responde. ¿Está corriendo el backend?" }));
+            }
+          });
+        },
+      },
     },
   },
 });

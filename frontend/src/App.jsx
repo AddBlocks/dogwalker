@@ -19,18 +19,28 @@ import Comercio from "./pages/Comercio";
 import SugerirComercio from "./pages/SugerirComercio";
 import Perfil from "./pages/Perfil";
 import Admin from "./pages/Admin";
+import CambiarClave from "./pages/CambiarClave";
 
 function Gate({ children, roles }) {
   const { user, loading } = useAuth();
   if (loading) return <p className="p-6 text-center text-bosque">Cargando…</p>;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.debe_cambiar_clave) return <Navigate to="/cambiar-clave" replace />;
   if (roles && !roles.includes(user.rol)) return <Navigate to="/mapa" replace />;
+  return children;
+}
+
+function GateClave({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <p className="p-6 text-center text-bosque">Cargando…</p>;
+  if (!user) return <Navigate to="/login" replace />;
   return children;
 }
 
 function Home() {
   const { user, loading } = useAuth();
   if (loading) return <p className="p-6 text-center text-bosque">Cargando…</p>;
+  if (user?.debe_cambiar_clave) return <Navigate to="/cambiar-clave" replace />;
   if (user) return <Navigate to="/mapa" replace />;
   return <Navigate to="/login" replace />;
 }
@@ -40,6 +50,14 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route
+        path="/cambiar-clave"
+        element={
+          <GateClave>
+            <CambiarClave />
+          </GateClave>
+        }
+      />
       <Route path="/registro" element={<Registro />} />
       <Route path="/privacidad" element={<Privacidad />} />
       <Route

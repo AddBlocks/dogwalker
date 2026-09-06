@@ -10,6 +10,7 @@ fs.mkdirSync(dataDir, { recursive: true });
 export const db = new DatabaseSync(path.join(dataDir, "paseopatitas.db"));
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
+db.exec("PRAGMA busy_timeout = 5000");
 
 export function migrate() {
   db.exec(`
@@ -200,6 +201,7 @@ export function migrate() {
   migrateNotificaciones();
   migrateAvisos();
   migrateEdadYPerro();
+  migrateClaveTemporal();
 }
 
 function tableSql(name) {
@@ -315,6 +317,12 @@ function migrateEdadYPerro() {
   db.prepare("UPDATE users SET autorizado = 1 WHERE rol != 'paseador' AND deleted_at IS NULL").run();
 }
 
+function migrateClaveTemporal() {
+  if (!hasColumn("users", "temp_password_hash")) db.exec("ALTER TABLE users ADD COLUMN temp_password_hash TEXT");
+  if (!hasColumn("users", "temp_password_expires_at")) db.exec("ALTER TABLE users ADD COLUMN temp_password_expires_at TEXT");
+  if (!hasColumn("users", "debe_cambiar_clave")) db.exec("ALTER TABLE users ADD COLUMN debe_cambiar_clave INTEGER DEFAULT 0");
+}
+
 function migrateAvisos() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS avisos (
@@ -348,6 +356,7 @@ export function publicUser(row) {
     consentimiento_at: row.consentimiento_at,
     created_at: row.created_at,
     autorizado: row.autorizado !== 0,
+    debe_cambiar_clave: Boolean(row.debe_cambiar_clave),
     perro_raza: row.perro_raza || "",
     perro_mezcla: Boolean(row.perro_mezcla),
     perro_agresivo: Boolean(row.perro_agresivo),

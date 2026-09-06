@@ -53,6 +53,13 @@ function UsuariosAdmin() {
     try {
       if (await borrarUsuario(u.id, u.nombre)) load();
     } catch (e) {
+      try {
+        const next = await api("/api/admin/usuarios");
+        setRows(next);
+        if (!next.some((x) => x.id === u.id)) return;
+      } catch {
+        /* el listado también falló */
+      }
       setError(e.message);
     }
   }
@@ -121,6 +128,13 @@ function PaseadoresAdmin() {
     try {
       if (await borrarUsuario(p.user_id, p.nombre)) load();
     } catch (e) {
+      try {
+        const next = await api("/api/admin/paseadores");
+        setRows(next);
+        if (!next.some((x) => x.user_id === p.user_id)) return;
+      } catch {
+        /* el listado también falló */
+      }
       setError(e.message);
     }
   }

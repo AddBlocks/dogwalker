@@ -21,8 +21,22 @@ purgeExpiredIdDocuments();
 setInterval(purgeExpiredIdDocuments, 60 * 60 * 1000);
 
 const app = express();
-const origin = process.env.FRONTEND_URL || "http://localhost:5173";
-app.use(cors({ origin, credentials: true }));
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      const extra = process.env.FRONTEND_URL;
+      const ok =
+        (extra && origin === extra) ||
+        /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin) ||
+        origin.endsWith(".trycloudflare.com") ||
+        origin.endsWith(".ngrok-free.app") ||
+        origin.endsWith(".ngrok.io");
+      cb(null, ok);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/salud", (_req, res) => {
@@ -54,6 +68,6 @@ app.use((err, _req, res, _next) => {
 });
 
 const port = Number(process.env.PORT || 4000);
-app.listen(port, () => {
-  console.log(`Patitas API en http://localhost:${port}`);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Patitas API en http://127.0.0.1:${port}`);
 });

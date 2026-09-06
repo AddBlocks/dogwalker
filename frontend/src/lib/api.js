@@ -11,10 +11,15 @@ export function setToken(token) {
 
 export async function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
-  if (!(opts.body instanceof FormData)) headers["Content-Type"] = "application/json";
+  if (opts.body != null && !(opts.body instanceof FormData)) headers["Content-Type"] = "application/json";
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(path, { ...opts, headers });
+  let res;
+  try {
+    res = await fetch(path, { ...opts, headers });
+  } catch {
+    throw new Error("Se cortó la conexión. Intentá de nuevo.");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Algo salió mal. Inténtalo de nuevo.");
   return data;

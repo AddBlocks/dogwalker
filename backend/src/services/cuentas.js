@@ -43,7 +43,8 @@ export function eliminarCuenta(userId, { actorId } = {}) {
   const anon = `eliminado-${user.id}@eliminado.local`;
   db.prepare(
     `UPDATE users SET email = ?, password_hash = NULL, google_id = NULL, nombre = 'Cuenta eliminada',
-      telefono = NULL, avatar_url = NULL, deleted_at = datetime('now')
+      telefono = NULL, avatar_url = NULL, temp_password_hash = NULL, temp_password_expires_at = NULL,
+      debe_cambiar_clave = 0, deleted_at = datetime('now')
      WHERE id = ?`
   ).run(anon, user.id);
 

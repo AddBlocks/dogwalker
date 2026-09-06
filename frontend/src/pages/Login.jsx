@@ -18,6 +18,9 @@ export default function Login() {
         : ""
   );
   const [googleUrl, setGoogleUrl] = useState(null);
+  const [loginFallo, setLoginFallo] = useState(false);
+  const [recuperar, setRecuperar] = useState(null);
+  const [msgRecuperar, setMsgRecuperar] = useState("");
 
   useEffect(() => {
     const gt = params.get("google_token");
@@ -28,7 +31,9 @@ export default function Login() {
   }, [params, refresh, nav]);
 
   useEffect(() => {
-    if (user) nav("/mapa");
+    if (!user) return;
+    if (user.debe_cambiar_clave) nav("/cambiar-clave");
+    else nav("/mapa");
   }, [user, nav]);
 
   useEffect(() => {
@@ -40,11 +45,27 @@ export default function Login() {
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
+    setLoginFallo(false);
+    setRecuperar(null);
+    setMsgRecuperar("");
     try {
       const u = await login(email, password);
-      nav(u.rol === "paseador" ? "/solicitudes" : "/mapa");
+      nav(u.debe_cambiar_clave ? "/cambiar-clave" : u.rol === "paseador" ? "/solicitudes" : "/mapa");
     } catch (err) {
       setError(err.message);
+      setLoginFallo(true);
+    }
+  }
+
+  async function enviarTemporal() {
+    setMsgRecuperar("");
+    try {
+      const data = await api("/api/auth/recuperar", { method: "POST", body: JSON.stringify({ email }) });
+      setMsgRecuperar(data.mensaje);
+      setRecuperar(null);
+      setLoginFallo(false);
+    } catch (err) {
+      setMsgRecuperar(err.message);
     }
   }
 
@@ -63,6 +84,42 @@ export default function Login() {
           <input className="mt-1 w-full rounded-xl border border-arena px-3 py-2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </label>
         {error && <p className="text-sm text-greda">{error}</p>}
+        {loginFallo && recuperar !== "preguntar" && (
+          <button
+            type="button"
+            className="w-full text-sm font-bold text-greda underline"
+            onClick={() => {
+              if (!email.trim()) {
+                setError("Ingresá tu correo para recuperarla.");
+                return;
+              }
+              setRecuperar("preguntar");
+            }}
+          >
+            ¿Olvidaste tu clave?
+          </button>
+        )}
+        {recuperar === "preguntar" && (
+          <div className="rounded-2xl bg-arena/60 p-3 space-y-2">
+            <p className="text-sm font-bold">¿El correo {email} es el correcto?</p>
+            <div className="flex gap-2">
+              <button type="button" className="flex-1 bg-bosque text-crema font-bold rounded-xl py-2" onClick={enviarTemporal}>
+                Sí, enviame la clave
+              </button>
+              <button
+                type="button"
+                className="flex-1 border border-bosque font-bold rounded-xl py-2"
+                onClick={() => {
+                  setRecuperar(null);
+                  setLoginFallo(true);
+                }}
+              >
+                No, corregirlo
+              </button>
+            </div>
+          </div>
+        )}
+        {msgRecuperar && <p className="text-sm text-bosque">{msgRecuperar}</p>}
         <button className="w-full bg-bosque text-crema font-bold rounded-xl py-3">Entrar</button>
         {googleUrl && (
           <a href={googleUrl} className="block text-center w-full border border-bosque rounded-xl py-3 font-bold">

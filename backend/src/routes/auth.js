@@ -1,7 +1,9 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import multer from "multer";
+import { enviarCorreo } from "../services/mail.js";
 import { db, lastId, publicUser } from "../db.js";
 import { auth, signToken } from "../middleware/auth.js";
 import { avisarAdminNuevoRegistro } from "../services/notificaciones.js";
@@ -149,16 +151,73 @@ authRouter.get("/aprobar-paseador", (req, res) => {
   }
 });
 
+function claveTemporalVigente(user, password) {
+  if (!user?.temp_password_hash || !user.temp_password_expires_at) return false;
+  if (new Date(user.temp_password_expires_at).getTime() < Date.now()) return false;
+  return bcrypt.compareSync(password || "", user.temp_password_hash);
+}
+
+function generarClaveTemporal() {
+  const raw = crypto.randomBytes(5).toString("base64url").replace(/[-_]/g, "A").slice(0, 8);
+  return `Pp${raw}`;
+}
+
 authRouter.post("/login", (req, res) => {
   const { email, password } = req.body || {};
   const user = db.prepare("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL").get(String(email || "").toLowerCase());
-  if (!user || !user.password_hash || !bcrypt.compareSync(password || "", user.password_hash)) {
+  const claveOk = user?.password_hash && bcrypt.compareSync(password || "", user.password_hash);
+  const temporalOk = Boolean(user && claveTemporalVigente(user, password));
+  if (!user || (!claveOk && !temporalOk)) {
     return res.status(401).json({ error: "Correo o contraseña incorrectos." });
   }
   if (!user.autorizado) {
     return res.status(403).json(cuentaPendiente());
   }
+  if (temporalOk) {
+    db.prepare("UPDATE users SET debe_cambiar_clave = 1 WHERE id = ?").run(user.id);
+    user.debe_cambiar_clave = 1;
+  }
   res.json({ token: signToken(user), user: publicUser(user) });
+});
+
+authRouter.post("/recuperar", async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const generico = {
+    ok: true,
+    mensaje: "Si ese correo está en Patitas, te enviamos una clave temporal. Vale 5 minutos.",
+  };
+  if (!email || !email.includes("@")) return res.json(generico);
+  const user = db.prepare("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL").get(email);
+  if (!user) return res.json(generico);
+  const clave = generarClaveTemporal();
+  const expira = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  db.prepare(
+    `UPDATE users SET temp_password_hash = ?, temp_password_expires_at = ?, debe_cambiar_clave = 1 WHERE id = ?`
+  ).run(bcrypt.hashSync(clave, 10), expira, user.id);
+  const text = [
+    `Hola ${user.nombre},`,
+    `Tu clave temporal de Patitas es: ${clave}`,
+    "Vale 5 minutos. Entrá con ella y cambiala apenas ingreses.",
+  ].join("\n");
+  await enviarCorreo({
+    to: user.email,
+    subject: "Patitas: tu clave temporal",
+    text,
+    html: `<div style="font-family:sans-serif;max-width:480px"><p>Hola ${user.nombre},</p><p>Tu clave temporal es:</p><p style="font-size:22px;font-weight:700;letter-spacing:1px">${clave}</p><p>Vale 5 minutos. Entrá con ella y cambiala apenas ingreses.</p></div>`,
+  }).catch((e) => console.error("[Patitas] correo recuperar", e));
+  res.json(generico);
+});
+
+authRouter.post("/cambiar-clave", auth(true), (req, res) => {
+  const password = String(req.body?.password || "");
+  if (password.length < 8) {
+    return res.status(400).json({ error: "La nueva contraseña debe tener al menos 8 caracteres." });
+  }
+  db.prepare(
+    `UPDATE users SET password_hash = ?, temp_password_hash = NULL, temp_password_expires_at = NULL, debe_cambiar_clave = 0 WHERE id = ?`
+  ).run(bcrypt.hashSync(password, 10), req.user.id);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  res.json({ ok: true, user: publicUser(user) });
 });
 
 authRouter.get("/me", auth(true), (req, res) => {

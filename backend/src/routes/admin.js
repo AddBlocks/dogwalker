@@ -222,9 +222,14 @@ adminRouter.post("/usuarios/:id/autorizar", async (req, res) => {
 });
 
 adminRouter.delete("/usuarios/:id", (req, res) => {
-  const result = eliminarCuenta(req.params.id, { actorId: req.user.id });
-  if (result.error) return res.status(result.status).json({ error: result.error });
-  res.json({ ok: true });
+  try {
+    const result = eliminarCuenta(req.params.id, { actorId: req.user.id });
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "No se pudo eliminar el usuario." });
+  }
 });
 
 adminRouter.get("/metricas", (_req, res) => {
