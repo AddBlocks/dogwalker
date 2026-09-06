@@ -6,6 +6,7 @@ import { db } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { writeEncrypted } from "../services/encryption.js";
 import { submitVerification, verificationProviderName } from "../services/verification.js";
+import { leerFechaNacimiento, resolverEdad, validarEdadPaseador } from "../services/cedula.js";
 import { geocodeSantiago, haversineKm } from "../services/geocode.js";
 import { armarZonaCalles, parseZona, puntoEnPoligono } from "../services/zonaCalles.js";
 
@@ -16,7 +17,8 @@ const upload = multer({
   limits: { fileSize: 6 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (/^image\/(jpeg|png|webp)$/.test(file.mimetype)) cb(null, true);
-    else cb(new Error("Solo se aceptan fotos JPG, PNG o WEBP."));
+    else if (file.fieldname === "autorizacion_padres" && file.mimetype === "application/pdf") cb(null, true);
+    else cb(new Error("Solo se aceptan fotos JPG, PNG o WEBP (la autorización de padres también puede ser PDF)."));
   },
 });
 
@@ -54,6 +56,8 @@ function walkerRow(row) {
     email_transferencia: row.email_transferencia || null,
     pago_momento: row.pago_momento || null,
     monto_anticipado_clp: row.monto_anticipado_clp || null,
+    edad: row.edad ?? null,
+    solo_no_peligrosas: Boolean(row.solo_no_peligrosas),
     telefono_visible: false,
   };
 }
@@ -171,7 +175,8 @@ walkersRouter.get("/", (req, res) => {
            p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados,
            p.lat, p.lng, p.radio_km, p.calles_json,
            p.banco, p.tipo_cuenta, p.numero_cuenta, p.titular, p.rut_titular,
-           p.email_transferencia, p.pago_momento, p.monto_anticipado_clp
+           p.email_transferencia, p.pago_momento, p.monto_anticipado_clp,
+           p.edad, p.solo_no_peligrosas
     FROM paseadores p
     JOIN users u ON u.id = p.user_id
     WHERE p.estado_verificacion = 'aprobado' AND u.deleted_at IS NULL
@@ -209,7 +214,8 @@ walkersRouter.get("/:id", (req, res) => {
               p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados,
               p.estado_verificacion, p.lat, p.lng, p.radio_km, p.calles_json,
               p.banco, p.tipo_cuenta, p.numero_cuenta, p.titular, p.rut_titular,
-              p.email_transferencia, p.pago_momento, p.monto_anticipado_clp
+              p.email_transferencia, p.pago_momento, p.monto_anticipado_clp,
+              p.edad, p.solo_no_peligrosas
        FROM paseadores p JOIN users u ON u.id = p.user_id
        WHERE u.id = ? AND u.deleted_at IS NULL`
     )
@@ -236,6 +242,7 @@ walkersRouter.post(
     { name: "cedula_frente", maxCount: 1 },
     { name: "cedula_reverso", maxCount: 1 },
     { name: "selfie", maxCount: 1 },
+    { name: "autorizacion_padres", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
@@ -243,25 +250,52 @@ walkersRouter.post(
       if (!files.cedula_frente?.[0] || !files.cedula_reverso?.[0] || !files.selfie?.[0]) {
         return res.status(400).json({ error: "Subí cédula por ambos lados y una selfie." });
       }
+      const ocrIso = await leerFechaNacimiento(files.cedula_frente[0].buffer);
+      const edadInfo = resolverEdad({ ocrIso, fechaFormulario: req.body?.fecha_nacimiento });
+      const v = validarEdadPaseador(edadInfo.edad);
+      if (v.error) return res.status(400).json({ error: v.error });
+      if (v.menor && !files.autorizacion_padres?.[0]) {
+        return res.status(400).json({
+          error: "Si tenés menos de 18 años, subí una autorización simple de tus padres para pasear razas no peligrosas.",
+        });
+      }
       const p = db.prepare("SELECT * FROM paseadores WHERE user_id = ?").get(req.user.id);
       const stamp = `${req.user.id}-${Date.now()}`;
       const frente = writeEncrypted(uploadDir, `${stamp}-frente.bin`, files.cedula_frente[0].buffer);
       const reverso = writeEncrypted(uploadDir, `${stamp}-reverso.bin`, files.cedula_reverso[0].buffer);
       const selfie = writeEncrypted(uploadDir, `${stamp}-selfie.bin`, files.selfie[0].buffer);
+      const authPadres = files.autorizacion_padres?.[0]
+        ? writeEncrypted(uploadDir, `${stamp}-padres.bin`, files.autorizacion_padres[0].buffer)
+        : null;
 
       const result = await submitVerification({ userId: req.user.id });
       db.prepare(
         `UPDATE paseadores
-         SET cedula_frente = ?, cedula_reverso = ?, selfie = ?,
+         SET cedula_frente = ?, cedula_reverso = ?, selfie = ?, autorizacion_padres = ?,
+             fecha_nacimiento = ?, edad = ?, solo_no_peligrosas = ?,
              proveedor_verificacion = ?, id_externo_verificacion = ?, estado_verificacion = 'pendiente'
          WHERE id = ?`
-      ).run(frente, reverso, selfie, result.provider, result.externalId, p.id);
+      ).run(
+        frente,
+        reverso,
+        selfie,
+        authPadres,
+        edadInfo.fecha_nacimiento,
+        edadInfo.edad,
+        v.menor ? 1 : 0,
+        result.provider,
+        result.externalId,
+        p.id
+      );
 
       res.json({
         ok: true,
         proveedor: verificationProviderName(),
-        mensaje: result.message,
+        mensaje: v.menor
+          ? `${result.message} Edad ${edadInfo.edad}: solo podés pasear razas no peligrosas.`
+          : result.message,
         estado: "pendiente",
+        edad: edadInfo.edad,
       });
     } catch (err) {
       res.status(400).json({ error: err.message || "No se pudieron guardar los documentos." });

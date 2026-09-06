@@ -73,6 +73,13 @@ export default function Solicitudes() {
           <p className="font-display text-lg">{s.comuna}</p>
           <p className="text-sm">{s.horario} · {s.frecuencia}</p>
           <p className="font-bold">{clp(s.monto_clp)}</p>
+          {s.raza && (
+            <p className="text-sm">
+              Perro: {s.raza}
+              {s.es_mezcla ? " (mezcla)" : ""}
+              {s.agresivo ? " · peligroso/agresivo" : ""}
+            </p>
+          )}
           {s.mensaje && <p className="text-sm text-tinta/70">{s.mensaje}</p>}
           {user.rol === "dueno" && s.paseador_nombre && <p className="text-sm">Paseador: {s.paseador_nombre}</p>}
           {user.rol === "paseador" && <p className="text-sm">Dueño: {s.dueno_nombre}</p>}

@@ -7,24 +7,39 @@ import { avisarMatch, avisarSolicitudAPaseador } from "../services/notificacione
 export const solicitudesRouter = Router();
 
 solicitudesRouter.post("/", auth(true), requireRol("dueno"), async (req, res) => {
-  const { paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje } = req.body || {};
+  const { paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje, raza, es_mezcla, agresivo } = req.body || {};
   if (!comuna_id || !horario || !frecuencia || !monto_clp) {
     return res.status(400).json({ error: "Completa comuna, horario, frecuencia y monto." });
+  }
+  const razaNom = String(raza || req.user.perro_raza || "").trim();
+  if (!razaNom) {
+    return res.status(400).json({ error: "Indicá la raza de tu perro." });
+  }
+  const mezcla = es_mezcla === true || es_mezcla === 1 || es_mezcla === "1" || es_mezcla === "true" || /mezcla|mestizo/i.test(razaNom);
+  const agresivoEnviado = Object.prototype.hasOwnProperty.call(req.body || {}, "agresivo");
+  const esAgresivo = agresivo === true || agresivo === 1 || agresivo === "1" || agresivo === "true";
+  if (mezcla && !agresivoEnviado) {
+    return res.status(400).json({ error: "Si tu perro es mezcla, indicá si es peligroso o agresivo." });
   }
   if (paseador_id) {
     const walker = db
       .prepare(
-        `SELECT p.id FROM paseadores p JOIN users u ON u.id = p.user_id
+        `SELECT p.id, p.solo_no_peligrosas FROM paseadores p JOIN users u ON u.id = p.user_id
          WHERE u.id = ? AND p.estado_verificacion = 'aprobado'`
       )
       .get(Number(paseador_id));
     if (!walker) return res.status(404).json({ error: "Ese paseador no está disponible." });
+    if (walker.solo_no_peligrosas && esAgresivo) {
+      return res.status(400).json({
+        error: "Este paseador es menor de 18 y solo puede pasear razas no peligrosas.",
+      });
+    }
   }
   const estado = paseador_id ? "pendiente" : "abierta";
   const r = db
     .prepare(
-      `INSERT INTO solicitudes (dueno_id, paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje, estado)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO solicitudes (dueno_id, paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje, estado, raza, es_mezcla, agresivo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       req.user.id,
@@ -34,7 +49,10 @@ solicitudesRouter.post("/", auth(true), requireRol("dueno"), async (req, res) =>
       frecuencia,
       Number(monto_clp),
       mensaje || null,
-      estado
+      estado,
+      razaNom,
+      mezcla ? 1 : 0,
+      esAgresivo ? 1 : 0
     );
   if (paseador_id) {
     const walker = db.prepare("SELECT * FROM users WHERE id = ?").get(Number(paseador_id));
@@ -68,7 +86,7 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
   }
   if (req.user.rol === "paseador") {
     const zona = db
-      .prepare("SELECT lat, lng, radio_km, estado_verificacion FROM paseadores WHERE user_id = ?")
+      .prepare("SELECT lat, lng, radio_km, estado_verificacion, solo_no_peligrosas FROM paseadores WHERE user_id = ?")
       .get(req.user.id);
     const rows = db
       .prepare(
@@ -88,6 +106,7 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
         if (!zona || zona.estado_verificacion !== "aprobado" || zona.lat == null || zona.lng == null || !zona.radio_km) {
           return false;
         }
+        if (zona.solo_no_peligrosas && s.agresivo) return false;
         return haversineKm({ lat: zona.lat, lng: zona.lng }, { lat: s.comuna_lat, lng: s.comuna_lng }) <= Number(zona.radio_km);
       })
       .map(({ comuna_lat, comuna_lng, ...s }) => ({
@@ -109,9 +128,12 @@ solicitudesRouter.post("/:id/aceptar", auth(true), requireRol("paseador"), async
     return res.status(403).json({ error: "Esta solicitud es para otro paseador." });
   }
   const walkerOk = db
-    .prepare("SELECT id FROM paseadores WHERE user_id = ? AND estado_verificacion = 'aprobado'")
+    .prepare("SELECT id, solo_no_peligrosas FROM paseadores WHERE user_id = ? AND estado_verificacion = 'aprobado'")
     .get(req.user.id);
   if (!walkerOk) return res.status(403).json({ error: "Tu perfil aún no está aprobado." });
+  if (walkerOk.solo_no_peligrosas && s.agresivo) {
+    return res.status(400).json({ error: "Como menor de 18 solo podés aceptar paseos de razas no peligrosas." });
+  }
 
   db.prepare(
     `UPDATE solicitudes SET estado = 'aceptada', paseador_id = ?, responded_at = datetime('now') WHERE id = ?`

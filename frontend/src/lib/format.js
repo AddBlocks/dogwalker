@@ -17,6 +17,29 @@ export const CATEGORIAS = [
 
 export const FRECUENCIAS = ["Una vez", "2 a 3 veces por semana", "Lunes a viernes", "Todos los días"];
 
+export const RAZAS = [
+  "Labrador",
+  "Golden Retriever",
+  "Poodle / Caniche",
+  "Pastor Alemán",
+  "Bulldog Francés",
+  "Chihuahua",
+  "Beagle",
+  "Boxer",
+  "Husky Siberiano",
+  "Border Collie",
+  "Cocker Spaniel",
+  "Yorkshire Terrier",
+  "Dachshund / Salchicha",
+  "Rottweiler",
+  "Pitbull / Staffordshire",
+  "Akita",
+  "Dogo Argentino",
+  "Fila Brasileiro",
+  "Mezcla / mestizo",
+  "Otra",
+];
+
 export const BANCOS_CL = [
   "BancoEstado",
   "Banco de Chile",

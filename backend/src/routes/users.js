@@ -6,10 +6,15 @@ import { eliminarCuenta } from "../services/cuentas.js";
 export const usersRouter = Router();
 
 usersRouter.put("/me", auth(true), (req, res) => {
-  const { nombre, telefono } = req.body || {};
-  db.prepare("UPDATE users SET nombre = ?, telefono = ? WHERE id = ?").run(
+  const { nombre, telefono, perro_raza, perro_mezcla, perro_agresivo } = req.body || {};
+  db.prepare(
+    `UPDATE users SET nombre = ?, telefono = ?, perro_raza = ?, perro_mezcla = ?, perro_agresivo = ? WHERE id = ?`
+  ).run(
     nombre || req.user.nombre,
     telefono !== undefined ? telefono || null : req.user.telefono,
+    perro_raza !== undefined ? String(perro_raza || "").trim() || null : req.user.perro_raza,
+    perro_mezcla === undefined ? Number(req.user.perro_mezcla || 0) : perro_mezcla ? 1 : 0,
+    perro_agresivo === undefined ? Number(req.user.perro_agresivo || 0) : perro_agresivo ? 1 : 0,
     req.user.id
   );
   res.json({ ok: true });

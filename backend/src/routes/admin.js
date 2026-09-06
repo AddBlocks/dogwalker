@@ -22,12 +22,14 @@ adminRouter.get("/paseadores", (_req, res) => {
     .map((p) => ({
       ...p,
       destacado: !!p.destacado,
-      tiene_documentos: Boolean(p.cedula_frente || p.cedula_reverso || p.selfie),
+      tiene_documentos: Boolean(p.cedula_frente || p.cedula_reverso || p.selfie || p.autorizacion_padres),
       docs: {
         cedula_frente: Boolean(p.cedula_frente),
         cedula_reverso: Boolean(p.cedula_reverso),
         selfie: Boolean(p.selfie),
+        autorizacion_padres: Boolean(p.autorizacion_padres),
       },
+      autorizacion_padres: undefined,
       direccion_privada: undefined,
       lat: undefined,
       lng: undefined,
@@ -43,7 +45,7 @@ adminRouter.get("/paseadores", (_req, res) => {
 });
 
 adminRouter.get("/paseadores/:id/documento/:tipo", (req, res) => {
-  const col = { cedula_frente: "cedula_frente", cedula_reverso: "cedula_reverso", selfie: "selfie" }[req.params.tipo];
+  const col = { cedula_frente: "cedula_frente", cedula_reverso: "cedula_reverso", selfie: "selfie", autorizacion_padres: "autorizacion_padres" }[req.params.tipo];
   if (!col) return res.status(400).json({ error: "Tipo de documento inválido." });
   const p = db.prepare("SELECT * FROM paseadores WHERE id = ?").get(Number(req.params.id));
   if (!p) return res.status(404).json({ error: "Paseador no encontrado." });
@@ -55,7 +57,8 @@ adminRouter.get("/paseadores/:id/documento/:tipo", (req, res) => {
   }
   try {
     const buf = decryptBuffer(fs.readFileSync(filePath));
-    res.setHeader("Content-Type", sniffImage(buf));
+    const pdf = buf.length >= 4 && buf.toString("ascii", 0, 4) === "%PDF";
+    res.setHeader("Content-Type", pdf ? "application/pdf" : sniffImage(buf));
     res.setHeader("Cache-Control", "no-store");
     res.send(buf);
   } catch {
@@ -194,7 +197,7 @@ adminRouter.get("/usuarios", (_req, res) => {
   const rows = db
     .prepare(
       `SELECT u.id, u.email, u.nombre, u.telefono, u.rol, u.created_at, u.calificacion_promedio, u.autorizado,
-              p.id AS paseador_id, p.estado_verificacion
+              p.id AS paseador_id, p.estado_verificacion, p.edad, p.solo_no_peligrosas
        FROM users u
        LEFT JOIN paseadores p ON p.user_id = u.id
        WHERE u.deleted_at IS NULL AND u.rol IN ('dueno','paseador')
@@ -209,6 +212,9 @@ adminRouter.post("/usuarios/:id/autorizar", async (req, res) => {
     .prepare("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL AND rol IN ('dueno','paseador')")
     .get(Number(req.params.id));
   if (!u) return res.status(404).json({ error: "Usuario no encontrado." });
+  if (u.rol !== "paseador") {
+    return res.status(400).json({ error: "Solo los paseadores requieren autorización." });
+  }
   db.prepare("UPDATE users SET autorizado = 1 WHERE id = ?").run(u.id);
   // const next = db.prepare("SELECT * FROM users WHERE id = ?").get(u.id);
   // await avisarCuentaAutorizada(next);

@@ -72,13 +72,17 @@ function UsuariosAdmin() {
           <p className="font-bold">{u.nombre}</p>
           <p className="text-xs">
             {ROL_LABEL[u.rol] || u.rol} · {u.email} · {u.telefono || "sin celular"}
-            {!u.autorizado ? " · espera autorización" : " · autorizado"}
+            {u.rol === "paseador" && !u.autorizado ? " · espera autorización" : u.rol === "paseador" ? " · autorizado" : ""}
           </p>
           {u.rol === "paseador" && (
-            <p className="text-xs text-tinta/50">Verificación: {u.estado_verificacion || "—"}</p>
+            <p className="text-xs text-tinta/50">
+              Verificación: {u.estado_verificacion || "—"}
+              {u.edad != null ? ` · ${u.edad} años` : ""}
+              {u.solo_no_peligrosas ? " · solo razas no peligrosas" : ""}
+            </p>
           )}
           <div className="flex flex-wrap gap-2 mt-2">
-            {!u.autorizado && (
+            {u.rol === "paseador" && !u.autorizado && (
               <button
                 className="text-xs font-bold bg-bosque text-crema px-3 py-1 rounded-full"
                 onClick={() =>
@@ -129,6 +133,11 @@ function PaseadoresAdmin() {
         <article key={p.id} className="bg-white border border-arena rounded-2xl p-3">
           <p className="font-bold">{p.nombre}</p>
           <p className="text-xs">{p.email} · {p.telefono || "sin celular"} · {p.estado_verificacion} {p.destacado ? "· Destacado" : ""}</p>
+          <p className="text-xs text-tinta/50">
+            {p.edad != null ? `${p.edad} años` : "Edad no leída"}
+            {p.solo_no_peligrosas ? " · solo razas no peligrosas" : ""}
+            {p.fecha_nacimiento ? ` · nac. ${p.fecha_nacimiento}` : ""}
+          </p>
           <p className="text-xs text-tinta/50">Proveedor: {p.proveedor_verificacion || "—"} {p.tiene_documentos ? "· documentos subidos" : "· sin documentos"}</p>
           <p className="text-sm">{p.descripcion}</p>
           <p className="text-xs text-tinta/50">{p.radio_km ? `Zona de ${p.radio_km} km (la dirección queda privada)` : "Sin zona de paseo"}</p>
@@ -167,6 +176,7 @@ const DOC_LABELS = [
   ["cedula_frente", "Cédula — frente"],
   ["cedula_reverso", "Cédula — reverso"],
   ["selfie", "Selfie"],
+  ["autorizacion_padres", "Autorización de padres"],
 ];
 
 function DocumentosPaseador({ paseador }) {

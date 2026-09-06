@@ -1,6 +1,9 @@
+import jwt from "jsonwebtoken";
 import { db, lastId } from "../db.js";
 import { enviarCorreo } from "./mail.js";
 // import { enviarSms, enviarWhatsapp, telefonoE164 } from "./mensajes.js";
+
+const SECRET = process.env.JWT_SECRET || "dev-paseopatitas";
 
 const ROL = { dueno: "dueño", paseador: "paseador", admin: "admin" };
 
@@ -47,25 +50,46 @@ export async function avisarUsuario(user, { subject, text }) {
 }
 */
 
-/** Solo correo gratis al administrador cuando hay un registro por autorizar. */
-export async function avisarAdminNuevoRegistro(user) {
+export function tokenAprobarPaseador(userId) {
+  return jwt.sign({ typ: "aprobar_paseador", uid: Number(userId) }, SECRET, { expiresIn: "7d" });
+}
+
+export function enlaceAprobarPaseador(userId) {
+  const base = (process.env.API_PUBLIC_URL || frontUrl()).replace(/\/$/, "");
+  return `${base}/api/auth/aprobar-paseador?token=${encodeURIComponent(tokenAprobarPaseador(userId))}`;
+}
+
+/** Correo al admin solo cuando un paseador necesita autorización. Incluye botón para aprobar. */
+export async function avisarAdminNuevoRegistro(user, extra = {}) {
+  if (user.rol !== "paseador") return;
   const dest = adminDestinos();
-  const rol = ROL[user.rol] || user.rol;
+  const aprobar = enlaceAprobarPaseador(user.id);
   const panel = `${frontUrl()}/admin`;
-  const subject = `Patitas: nuevo ${rol} para autorizar`;
-  const text = [
-    `Se registró ${user.nombre} (${rol}).`,
+  const edadTxt = extra.edad != null ? `${extra.edad} años` : "edad no leída";
+  const menor = extra.edad != null && extra.edad < 18;
+  const subject = `Patitas: autorizar paseador ${user.nombre}`;
+  const lineas = [
+    `Se registró el paseador ${user.nombre}.`,
     `Correo: ${user.email}`,
     `Celular: ${user.telefono || "no indicó"}`,
-    user.rol === "paseador" ? "Es paseador: además revisa cédula y selfie." : "Es dueño: autoriza la cuenta para que pueda entrar.",
+    `Edad (cédula): ${edadTxt}${extra.fecha_nacimiento ? ` · nacido/a ${extra.fecha_nacimiento}` : ""}`,
+    menor ? "Es menor de 18: solo puede pasear razas no peligrosas. Debió adjuntar autorización de los padres." : "Mayor de 18.",
+    `Aprobar ahora: ${aprobar}`,
     `Panel: ${panel}`,
-  ].join("\n");
+  ];
+  const text = lineas.join("\n");
+  const html = `
+    <div style="font-family:sans-serif;max-width:520px;line-height:1.45">
+      <h2 style="color:#1B4332">Nuevo paseador para autorizar</h2>
+      <p><strong>${user.nombre}</strong> se registró en Patitas.</p>
+      <p>Correo: ${user.email}<br/>Celular: ${user.telefono || "no indicó"}<br/>Edad: ${edadTxt}</p>
+      ${menor ? "<p>Menor de 18: autorización de padres adjunta. Solo razas no peligrosas.</p>" : ""}
+      <p><a href="${aprobar}" style="display:inline-block;background:#1B4332;color:#F6F1E7;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:700">Autorizar cuenta</a></p>
+      <p style="font-size:12px;color:#555">O abrí el <a href="${panel}">panel administrador</a>.</p>
+    </div>`;
   if (dest.email) {
-    await enviarCorreo({ to: dest.email, subject, text }).catch((e) => console.error("[Patitas] correo admin", e));
+    await enviarCorreo({ to: dest.email, subject, text, html }).catch((e) => console.error("[Patitas] correo admin", e));
   }
-  // if (dest.whatsapp) {
-  //   await enviarWhatsapp(dest.whatsapp, text).catch((e) => console.error("[Patitas] whatsapp admin", e));
-  // }
 }
 
 export function avisarSolicitudAPaseador({ walker, dueno, solicitud }) {

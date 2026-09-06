@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import Logo from "./Logo";
@@ -71,7 +71,9 @@ export default function Layout() {
 
 function MenuPerfil({ logout }) {
   const nav = useNavigate();
+  const loc = useLocation();
   const [abierto, setAbierto] = useState(false);
+  const activo = loc.pathname.startsWith("/perfil");
 
   function cerrarSesion() {
     setAbierto(false);
@@ -85,26 +87,23 @@ function MenuPerfil({ logout }) {
       onMouseEnter={() => setAbierto(true)}
       onMouseLeave={() => setAbierto(false)}
     >
-      <NavLink
-        to="/perfil"
-        className={item}
-        onFocus={() => setAbierto(true)}
-        onClick={(e) => {
-          if (window.matchMedia("(hover: none)").matches && !abierto) {
-            e.preventDefault();
-            setAbierto(true);
-          }
-        }}
+      <button
+        type="button"
+        className={item({ isActive: activo })}
+        onClick={() => setAbierto((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={abierto}
       >
         <span className="text-lg">👤</span>
         Perfil
-      </NavLink>
+      </button>
       {abierto && (
-        <div className="absolute bottom-[calc(100%+0.35rem)] right-0 min-w-[10.5rem] rounded-2xl bg-white text-tinta shadow-ficha border border-arena overflow-hidden">
+        <div className="absolute bottom-[calc(100%+0.35rem)] right-0 min-w-[10.5rem] rounded-2xl bg-white text-tinta shadow-ficha border border-arena overflow-hidden" role="menu">
           <NavLink
             to="/perfil"
             className="block px-4 py-2.5 text-sm font-bold hover:bg-arena"
             onClick={() => setAbierto(false)}
+            role="menuitem"
           >
             Ver perfil
           </NavLink>
@@ -112,6 +111,7 @@ function MenuPerfil({ logout }) {
             type="button"
             className="w-full text-left px-4 py-2.5 text-sm font-bold text-greda hover:bg-arena"
             onClick={cerrarSesion}
+            role="menuitem"
           >
             Cerrar sesión
           </button>

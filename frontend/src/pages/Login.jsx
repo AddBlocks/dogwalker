@@ -14,7 +14,7 @@ export default function Login() {
     params.get("error") === "google"
       ? "No pudimos entrar con Google."
       : params.get("pendiente")
-        ? "Tu cuenta está en revisión. El administrador debe autorizarla."
+        ? "Si sos paseador, tu cuenta está en revisión. El administrador debe autorizarla."
         : ""
   );
   const [googleUrl, setGoogleUrl] = useState(null);

@@ -39,6 +39,9 @@ export default function PaseadorPerfil() {
             ? `${w.radio_km} km a la redonda`
             : "Sin zona publicada"}
       </p>
+      {w.solo_no_peligrosas && (
+        <p className="text-sm text-greda">Menor de 18: solo pasea razas no peligrosas (con autorización de los padres).</p>
+      )}
       <PagoPaseador walker={w} />
       {user?.rol === "dueno" && (
         <Link to={`/solicitar/${w.id}`} className="block text-center bg-greda text-white font-bold rounded-xl py-3">

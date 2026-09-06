@@ -3,13 +3,21 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, clp } from "../lib/api";
 import { FRECUENCIAS } from "../lib/format";
 import PagoPaseador from "../components/PagoPaseador";
+import DatosPerro from "../components/DatosPerro";
+import { useAuth } from "../lib/auth";
 
 export default function Solicitar() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { user } = useAuth();
   const [w, setW] = useState(null);
   const [comunas, setComunas] = useState([]);
   const [form, setForm] = useState({ comuna_id: "", horario: "", frecuencia: FRECUENCIAS[0], monto_clp: "", mensaje: "" });
+  const [perro, setPerro] = useState({
+    raza: user?.perro_raza || "",
+    es_mezcla: Boolean(user?.perro_mezcla),
+    agresivo: user?.perro_agresivo ? true : undefined,
+  });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -34,7 +42,14 @@ export default function Solicitar() {
     try {
       await api("/api/solicitudes", {
         method: "POST",
-        body: JSON.stringify({ ...form, paseador_id: Number(id), monto_clp: Number(form.monto_clp) }),
+        body: JSON.stringify({
+          ...form,
+          paseador_id: Number(id),
+          monto_clp: Number(form.monto_clp),
+          raza: perro.raza,
+          es_mezcla: perro.es_mezcla,
+          agresivo: Boolean(perro.agresivo),
+        }),
       });
       nav("/solicitudes");
     } catch (err) {
@@ -49,7 +64,11 @@ export default function Solicitar() {
       <h1 className="font-display text-2xl text-bosque">Solicitar a {w.nombre}</h1>
       <p className="text-sm">Precio referencial: {clp(w.precio_clp)}</p>
       {w.radio_km && <p className="text-sm">Pasea hasta {w.radio_km} km desde su zona.</p>}
+      {w.solo_no_peligrosas && (
+        <p className="text-sm text-greda">Este paseador es menor de 18 y solo pasea razas no peligrosas.</p>
+      )}
       <PagoPaseador walker={w} />
+      <DatosPerro value={perro} onChange={setPerro} />
       <select className="w-full rounded-xl border border-arena px-3 py-2" value={form.comuna_id} onChange={(e) => setForm({ ...form, comuna_id: Number(e.target.value) })}>
         {comunas.map((c) => (
           <option key={c.id} value={c.id}>{c.nombre}</option>

@@ -4,7 +4,8 @@ import { api } from "../lib/api";
 
 export default function Verificacion() {
   const nav = useNavigate();
-  const [files, setFiles] = useState({ cedula_frente: null, cedula_reverso: null, selfie: null });
+  const [files, setFiles] = useState({ cedula_frente: null, cedula_reverso: null, selfie: null, autorizacion_padres: null });
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
@@ -13,9 +14,10 @@ export default function Verificacion() {
     setError("");
     const fd = new FormData();
     for (const k of Object.keys(files)) {
-      if (!files[k]) return setError("Subí las tres fotos: cédula frente, reverso y selfie.");
-      fd.append(k, files[k]);
+      if (k !== "autorizacion_padres" && !files[k]) return setError("Subí las tres fotos: cédula frente, reverso y selfie.");
+      if (files[k]) fd.append(k, files[k]);
     }
+    if (fechaNacimiento) fd.append("fecha_nacimiento", fechaNacimiento);
     try {
       const data = await api("/api/paseadores/verificacion", { method: "POST", body: fd });
       setMsg(data.mensaje);
@@ -36,12 +38,17 @@ export default function Verificacion() {
           ["cedula_frente", "Cédula — frente"],
           ["cedula_reverso", "Cédula — reverso"],
           ["selfie", "Selfie"],
+          ["autorizacion_padres", "Autorización de padres (si sos menor de 18)"],
         ].map(([k, label]) => (
           <label key={k} className="block text-sm font-bold">
             {label}
-            <input className="mt-1 block w-full" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFiles((f) => ({ ...f, [k]: e.target.files[0] }))} />
+            <input className="mt-1 block w-full" type="file" accept={k === "autorizacion_padres" ? "image/jpeg,image/png,image/webp,application/pdf" : "image/jpeg,image/png,image/webp"} onChange={(e) => setFiles((f) => ({ ...f, [k]: e.target.files[0] }))} />
           </label>
         ))}
+        <label className="block text-sm font-bold">
+          Fecha de nacimiento (si no se lee de la cédula)
+          <input className="mt-1 w-full rounded-xl border border-arena px-3 py-2 font-normal" type="date" value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)} />
+        </label>
         {error && <p className="text-greda text-sm">{error}</p>}
         {msg && <p className="text-bosque-claro text-sm">{msg}</p>}
         <button className="w-full bg-bosque text-crema font-bold rounded-xl py-3">Enviar documentos</button>

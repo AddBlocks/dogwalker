@@ -2,11 +2,19 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { FRECUENCIAS } from "../lib/format";
+import DatosPerro from "../components/DatosPerro";
+import { useAuth } from "../lib/auth";
 
 export default function PublicarSolicitud() {
   const nav = useNavigate();
+  const { user } = useAuth();
   const [comunas, setComunas] = useState([]);
   const [form, setForm] = useState({ comuna_id: "", horario: "", frecuencia: FRECUENCIAS[0], monto_clp: "", mensaje: "" });
+  const [perro, setPerro] = useState({
+    raza: user?.perro_raza || "",
+    es_mezcla: Boolean(user?.perro_mezcla),
+    agresivo: user?.perro_agresivo ? true : undefined,
+  });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -21,7 +29,13 @@ export default function PublicarSolicitud() {
     try {
       await api("/api/solicitudes", {
         method: "POST",
-        body: JSON.stringify({ ...form, monto_clp: Number(form.monto_clp) }),
+        body: JSON.stringify({
+          ...form,
+          monto_clp: Number(form.monto_clp),
+          raza: perro.raza,
+          es_mezcla: perro.es_mezcla,
+          agresivo: Boolean(perro.agresivo),
+        }),
       });
       nav("/solicitudes");
     } catch (err) {
@@ -45,7 +59,8 @@ export default function PublicarSolicitud() {
         ))}
       </select>
       <input className="w-full rounded-xl border border-arena px-3 py-2" type="number" placeholder="Monto dispuesto a pagar (CLP)" value={form.monto_clp} onChange={(e) => setForm({ ...form, monto_clp: e.target.value })} required />
-      <textarea className="w-full rounded-xl border border-arena px-3 py-2" placeholder="Sobre tu perro" value={form.mensaje} onChange={(e) => setForm({ ...form, mensaje: e.target.value })} />
+      <DatosPerro value={perro} onChange={setPerro} />
+      <textarea className="w-full rounded-xl border border-arena px-3 py-2" placeholder="Punto de encuentro u otras indicaciones" value={form.mensaje} onChange={(e) => setForm({ ...form, mensaje: e.target.value })} />
       {error && <p className="text-greda text-sm">{error}</p>}
       <button className="w-full bg-bosque text-crema font-bold rounded-xl py-3">Publicar</button>
     </form>

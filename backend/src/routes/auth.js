@@ -1,8 +1,33 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import multer from "multer";
 import { db, lastId, publicUser } from "../db.js";
 import { auth, signToken } from "../middleware/auth.js";
 import { avisarAdminNuevoRegistro } from "../services/notificaciones.js";
+import { writeEncrypted } from "../services/encryption.js";
+import { leerFechaNacimiento, resolverEdad, validarEdadPaseador } from "../services/cedula.js";
+import { uploadDir } from "./walkers.js";
+
+const SECRET = process.env.JWT_SECRET || "dev-paseopatitas";
+
+const uploadReg = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024 },
+});
+
+function maybeMultipart(req, res, next) {
+  const ct = req.headers["content-type"] || "";
+  if (ct.includes("multipart/form-data")) {
+    return uploadReg.fields([
+      { name: "cedula_frente", maxCount: 1 },
+      { name: "cedula_reverso", maxCount: 1 },
+      { name: "selfie", maxCount: 1 },
+      { name: "autorizacion_padres", maxCount: 1 },
+    ])(req, res, next);
+  }
+  next();
+}
 
 export const authRouter = Router();
 
@@ -13,9 +38,10 @@ function cuentaPendiente() {
   };
 }
 
-authRouter.post("/registro", async (req, res) => {
-  const { email, password, nombre, telefono, rol, consentimiento } = req.body || {};
-  if (!consentimiento) {
+authRouter.post("/registro", maybeMultipart, async (req, res) => {
+  const { email, password, nombre, telefono, rol, consentimiento, fecha_nacimiento } = req.body || {};
+  const okConsent = consentimiento === true || consentimiento === "true" || consentimiento === "on";
+  if (!okConsent) {
     return res.status(400).json({
       error: "Tenís que aceptar el tratamiento de datos personales (Ley 21.719) para crear la cuenta.",
     });
@@ -32,29 +58,95 @@ authRouter.post("/registro", async (req, res) => {
   const exists = db.prepare("SELECT id FROM users WHERE email = ?").get(String(email).toLowerCase());
   if (exists) return res.status(409).json({ error: "Ya existe una cuenta con ese correo." });
 
+  let edadInfo = { fecha_nacimiento: null, edad: null };
+  const files = req.files || {};
+  if (rol === "paseador") {
+    if (!files.cedula_frente?.[0]) {
+      return res.status(400).json({ error: "Los paseadores deben subir la foto frontal de la cédula." });
+    }
+    const ocrIso = await leerFechaNacimiento(files.cedula_frente[0].buffer);
+    edadInfo = resolverEdad({ ocrIso, fechaFormulario: fecha_nacimiento });
+    const v = validarEdadPaseador(edadInfo.edad);
+    if (v.error) return res.status(400).json({ error: v.error });
+    if (v.menor && !files.autorizacion_padres?.[0]) {
+      return res.status(400).json({
+        error: "Si tenés menos de 18 años, subí una autorización simple de tus padres para pasear razas no peligrosas.",
+      });
+    }
+  }
+
+  const autorizado = rol === "paseador" ? 0 : 1;
   const r = db
     .prepare(
       `INSERT INTO users (email, password_hash, nombre, telefono, rol, consentimiento_at, autorizado, notify_email, notify_sms)
-       VALUES (?, ?, ?, ?, ?, datetime('now'), 0, 1, 0)`
+       VALUES (?, ?, ?, ?, ?, datetime('now'), ?, 1, 0)`
     )
-    .run(String(email).toLowerCase(), bcrypt.hashSync(password, 10), nombre.trim(), telefono || null, rol);
+    .run(String(email).toLowerCase(), bcrypt.hashSync(password, 10), nombre.trim(), telefono || null, rol, autorizado);
 
+  const userId = lastId(r);
   if (rol === "paseador") {
-    db.prepare("INSERT INTO paseadores (user_id, estado_verificacion, proveedor_verificacion) VALUES (?, 'pendiente', ?)")
-      .run(lastId(r), process.env.VERIFY_PROVIDER || "mock");
+    const stamp = `${userId}-${Date.now()}`;
+    const frente = writeEncrypted(uploadDir, `${stamp}-frente.bin`, files.cedula_frente[0].buffer);
+    const reverso = files.cedula_reverso?.[0]
+      ? writeEncrypted(uploadDir, `${stamp}-reverso.bin`, files.cedula_reverso[0].buffer)
+      : null;
+    const selfie = files.selfie?.[0] ? writeEncrypted(uploadDir, `${stamp}-selfie.bin`, files.selfie[0].buffer) : null;
+    const authPadres = files.autorizacion_padres?.[0]
+      ? writeEncrypted(uploadDir, `${stamp}-padres.bin`, files.autorizacion_padres[0].buffer)
+      : null;
+    db.prepare(
+      `INSERT INTO paseadores (
+         user_id, estado_verificacion, proveedor_verificacion,
+         cedula_frente, cedula_reverso, selfie, autorizacion_padres,
+         fecha_nacimiento, edad, solo_no_peligrosas
+       ) VALUES (?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      userId,
+      process.env.VERIFY_PROVIDER || "mock",
+      frente,
+      reverso,
+      selfie,
+      authPadres,
+      edadInfo.fecha_nacimiento,
+      edadInfo.edad,
+      edadInfo.edad < 18 ? 1 : 0
+    );
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(lastId(r));
-  try {
-    await avisarAdminNuevoRegistro(user);
-  } catch (err) {
-    console.error("[Patitas] no se pudo avisar al admin", err);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  if (rol === "paseador") {
+    try {
+      await avisarAdminNuevoRegistro(user, edadInfo);
+    } catch (err) {
+      console.error("[Patitas] no se pudo avisar al admin", err);
+    }
+    return res.status(201).json({
+      pendiente: true,
+      email: user.email,
+      edad: edadInfo.edad,
+      mensaje: "Recibimos tu registro. El administrador autoriza tu cuenta de paseador y te avisamos para entrar.",
+    });
   }
-  res.status(201).json({
-    pendiente: true,
-    email: user.email,
-    mensaje: "Recibimos tu registro. El administrador te autoriza y te avisamos para que puedas entrar.",
-  });
+
+  res.status(201).json({ token: signToken(user), user: publicUser(user) });
+});
+
+authRouter.get("/aprobar-paseador", (req, res) => {
+  const pagina = (titulo, cuerpo) =>
+    `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+     <title>${titulo}</title>
+     <body style="font-family:sans-serif;background:#F6F1E7;color:#1B1B1B;padding:2rem;max-width:32rem">
+     <h1 style="color:#1B4332">${titulo}</h1><p>${cuerpo}</p></body></html>`;
+  try {
+    const payload = jwt.verify(String(req.query.token || ""), SECRET);
+    if (payload.typ !== "aprobar_paseador") throw new Error("token");
+    const user = db.prepare("SELECT * FROM users WHERE id = ? AND rol = 'paseador' AND deleted_at IS NULL").get(payload.uid);
+    if (!user) return res.status(404).send(pagina("No encontrado", "No encontramos esa cuenta de paseador."));
+    db.prepare("UPDATE users SET autorizado = 1 WHERE id = ?").run(user.id);
+    res.send(pagina("Cuenta autorizada", `${user.nombre} ya puede entrar a Patitas.`));
+  } catch {
+    res.status(400).send(pagina("Enlace inválido", "Este enlace no es válido o venció. Autorizá desde el panel."));
+  }
 });
 
 authRouter.post("/login", (req, res) => {
@@ -81,6 +173,9 @@ authRouter.get("/me", auth(true), (req, res) => {
         disponibilidad: paseador.disponibilidad,
         destacado: !!paseador.destacado,
         estado_verificacion: paseador.estado_verificacion,
+        fecha_nacimiento: paseador.fecha_nacimiento,
+        edad: paseador.edad,
+        solo_no_peligrosas: Boolean(paseador.solo_no_peligrosas),
         direccion_privada: paseador.direccion_privada,
         radio_km: paseador.radio_km,
         tiene_zona: Boolean(paseador.lat && paseador.lng && paseador.radio_km),
@@ -145,12 +240,10 @@ authRouter.get("/google/callback", async (req, res) => {
       const r = db
         .prepare(
           `INSERT INTO users (email, google_id, nombre, rol, consentimiento_at, avatar_url, autorizado, notify_email, notify_sms)
-           VALUES (?, ?, ?, 'dueno', datetime('now'), ?, 0, 1, 0)`
+           VALUES (?, ?, ?, 'dueno', datetime('now'), ?, 1, 1, 0)`
         )
         .run(email, payload.sub, payload.name || email.split("@")[0], payload.picture || null);
       user = db.prepare("SELECT * FROM users WHERE id = ?").get(lastId(r));
-      await avisarAdminNuevoRegistro(user);
-      return res.redirect(`${front}/login?pendiente=1`);
     }
     if (!user.google_id) {
       db.prepare("UPDATE users SET google_id = ? WHERE id = ?").run(payload.sub, user.id);

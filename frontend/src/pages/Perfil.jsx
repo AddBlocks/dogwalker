@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import Stars from "../components/Stars";
 import { BANCOS_CL, TIPOS_CUENTA } from "../lib/format";
+import DatosPerro from "../components/DatosPerro";
 
 export default function Perfil() {
   const { user, paseador, logout, refresh } = useAuth();
@@ -19,6 +20,11 @@ export default function Perfil() {
     email_transferencia: paseador?.email_transferencia || "",
     pago_momento: paseador?.pago_momento || "",
     monto_anticipado_clp: paseador?.monto_anticipado_clp || "",
+  });
+  const [perro, setPerro] = useState({
+    raza: user.perro_raza || "",
+    es_mezcla: Boolean(user.perro_mezcla),
+    agresivo: user.perro_agresivo ? true : user.perro_mezcla ? false : undefined,
   });
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
@@ -42,7 +48,16 @@ export default function Perfil() {
     setError("");
     setMsg("");
     try {
-      await api("/api/usuarios/me", { method: "PUT", body: JSON.stringify({ nombre, telefono }) });
+      await api("/api/usuarios/me", {
+        method: "PUT",
+        body: JSON.stringify({
+          nombre,
+          telefono,
+          ...(user.rol === "dueno"
+            ? { perro_raza: perro.raza, perro_mezcla: perro.es_mezcla, perro_agresivo: Boolean(perro.agresivo) }
+            : {}),
+        }),
+      });
       if (user.rol === "paseador") {
         await api("/api/paseadores/mi-pago", {
           method: "PUT",
@@ -74,6 +89,7 @@ export default function Perfil() {
       <form onSubmit={save} className="space-y-2">
         <input className="w-full rounded-xl border border-arena px-3 py-2" value={nombre} onChange={(e) => setNombre(e.target.value)} />
         <input className="w-full rounded-xl border border-arena px-3 py-2" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Celular" />
+        {user.rol === "dueno" && <DatosPerro value={perro} onChange={setPerro} />}
         <p className="text-xs text-tinta/50">Los matches y pedidos se avisan acá en la app, en Solicitudes o Bandeja.</p>
 
         {user.rol === "paseador" && (

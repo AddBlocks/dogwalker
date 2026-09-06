@@ -39,7 +39,10 @@ export function migrate() {
       deleted_at TEXT,
       autorizado INTEGER DEFAULT 1,
       notify_email INTEGER DEFAULT 1,
-      notify_sms INTEGER DEFAULT 0
+      notify_sms INTEGER DEFAULT 0,
+      perro_raza TEXT,
+      perro_mezcla INTEGER DEFAULT 0,
+      perro_agresivo INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS paseadores (
@@ -71,6 +74,10 @@ export function migrate() {
       email_transferencia TEXT,
       pago_momento TEXT,
       monto_anticipado_clp INTEGER,
+      fecha_nacimiento TEXT,
+      edad INTEGER,
+      solo_no_peligrosas INTEGER DEFAULT 0,
+      autorizacion_padres TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -89,6 +96,9 @@ export function migrate() {
       frecuencia TEXT NOT NULL,
       monto_clp INTEGER NOT NULL,
       mensaje TEXT,
+      raza TEXT,
+      es_mezcla INTEGER DEFAULT 0,
+      agresivo INTEGER DEFAULT 0,
       estado TEXT DEFAULT 'abierta'
         CHECK(estado IN ('abierta','pendiente','aceptada','rechazada','cancelada')),
       created_at TEXT DEFAULT (datetime('now')),
@@ -189,6 +199,7 @@ export function migrate() {
   migrateMarcaPatitas();
   migrateNotificaciones();
   migrateAvisos();
+  migrateEdadYPerro();
 }
 
 function tableSql(name) {
@@ -290,6 +301,20 @@ function migrateNotificaciones() {
   if (!hasColumn("users", "notify_sms")) db.exec("ALTER TABLE users ADD COLUMN notify_sms INTEGER DEFAULT 0");
 }
 
+function migrateEdadYPerro() {
+  if (!hasColumn("users", "perro_raza")) db.exec("ALTER TABLE users ADD COLUMN perro_raza TEXT");
+  if (!hasColumn("users", "perro_mezcla")) db.exec("ALTER TABLE users ADD COLUMN perro_mezcla INTEGER DEFAULT 0");
+  if (!hasColumn("users", "perro_agresivo")) db.exec("ALTER TABLE users ADD COLUMN perro_agresivo INTEGER DEFAULT 0");
+  if (!hasColumn("paseadores", "fecha_nacimiento")) db.exec("ALTER TABLE paseadores ADD COLUMN fecha_nacimiento TEXT");
+  if (!hasColumn("paseadores", "edad")) db.exec("ALTER TABLE paseadores ADD COLUMN edad INTEGER");
+  if (!hasColumn("paseadores", "solo_no_peligrosas")) db.exec("ALTER TABLE paseadores ADD COLUMN solo_no_peligrosas INTEGER DEFAULT 0");
+  if (!hasColumn("paseadores", "autorizacion_padres")) db.exec("ALTER TABLE paseadores ADD COLUMN autorizacion_padres TEXT");
+  if (!hasColumn("solicitudes", "raza")) db.exec("ALTER TABLE solicitudes ADD COLUMN raza TEXT");
+  if (!hasColumn("solicitudes", "es_mezcla")) db.exec("ALTER TABLE solicitudes ADD COLUMN es_mezcla INTEGER DEFAULT 0");
+  if (!hasColumn("solicitudes", "agresivo")) db.exec("ALTER TABLE solicitudes ADD COLUMN agresivo INTEGER DEFAULT 0");
+  db.prepare("UPDATE users SET autorizado = 1 WHERE rol != 'paseador' AND deleted_at IS NULL").run();
+}
+
 function migrateAvisos() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS avisos (
@@ -323,6 +348,9 @@ export function publicUser(row) {
     consentimiento_at: row.consentimiento_at,
     created_at: row.created_at,
     autorizado: row.autorizado !== 0,
+    perro_raza: row.perro_raza || "",
+    perro_mezcla: Boolean(row.perro_mezcla),
+    perro_agresivo: Boolean(row.perro_agresivo),
     notify_email: row.notify_email !== 0,
     notify_sms: Boolean(row.notify_sms),
   };
