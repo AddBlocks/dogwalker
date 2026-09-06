@@ -43,6 +43,8 @@ function UsuariosAdmin() {
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState("");
   const [error, setError] = useState("");
+  const [viendo, setViendo] = useState(null);
+  const [ocultos, setOcultos] = useState({});
 
   function load() {
     api("/api/admin/usuarios").then(setRows);
@@ -96,9 +98,21 @@ function UsuariosAdmin() {
             </p>
           )}
           <div className="flex flex-wrap gap-2 mt-2">
+            {u.rol === "paseador" && u.paseador_id && (
+              <button
+                className="text-xs font-bold border border-bosque text-bosque px-3 py-1 rounded-full"
+                onClick={() => {
+                  if (u.autorizado) setViendo(viendo === u.id ? null : u.id);
+                  else setOcultos((o) => ({ ...o, [u.id]: !o[u.id] }));
+                }}
+              >
+                {(u.autorizado ? viendo === u.id : !ocultos[u.id]) ? "Ocultar documentos" : "Ver documentos"}
+              </button>
+            )}
             {u.rol === "paseador" && !u.autorizado && (
               <button
-                className="text-xs font-bold bg-bosque text-crema px-3 py-1 rounded-full"
+                className="text-xs font-bold bg-bosque text-crema px-3 py-1 rounded-full disabled:opacity-40"
+                disabled={!u.tiene_documentos}
                 onClick={() =>
                   api(`/api/admin/usuarios/${u.id}/autorizar`, { method: "POST" })
                     .then(load)
@@ -115,6 +129,16 @@ function UsuariosAdmin() {
               Eliminar usuario
             </button>
           </div>
+          {u.rol === "paseador" && u.paseador_id && (u.autorizado ? viendo === u.id : !ocultos[u.id]) && (
+            <DocumentosPaseador
+              paseador={{
+                id: u.paseador_id,
+                docs: u.docs,
+                docs_viejos: u.docs_viejos,
+                tiene_documentos: u.tiene_documentos,
+              }}
+            />
+          )}
         </article>
       ))}
     </div>
@@ -125,6 +149,7 @@ function PaseadoresAdmin() {
   const [rows, setRows] = useState([]);
   const [pendientes, setPendientes] = useState([]);
   const [viendo, setViendo] = useState(null);
+  const [ocultos, setOcultos] = useState({});
   const [error, setError] = useState("");
   function load() {
     api("/api/admin/paseadores").then(setRows);
@@ -193,8 +218,14 @@ function PaseadoresAdmin() {
           <p className="text-sm">{p.descripcion}</p>
           <p className="text-xs text-tinta/50">{p.radio_km ? `Zona de ${p.radio_km} km (la dirección queda privada)` : "Sin zona de paseo"}</p>
           <div className="flex flex-wrap gap-2 mt-2 text-xs font-bold">
-            <button className="border border-bosque text-bosque px-3 py-1 rounded-full" onClick={() => setViendo(viendo === p.id ? null : p.id)}>
-              {viendo === p.id ? "Ocultar documentos" : "Ver documentos"}
+            <button
+              className="border border-bosque text-bosque px-3 py-1 rounded-full"
+              onClick={() => {
+                if (p.estado_verificacion === "pendiente") setOcultos((o) => ({ ...o, [p.id]: !o[p.id] }));
+                else setViendo(viendo === p.id ? null : p.id);
+              }}
+            >
+              {(p.estado_verificacion === "pendiente" ? !ocultos[p.id] : viendo === p.id) ? "Ocultar documentos" : "Ver documentos"}
             </button>
             {p.estado_verificacion !== "aprobado" && (
               <button className="bg-bosque text-crema px-3 py-1 rounded-full" onClick={() => api(`/api/admin/paseadores/${p.id}/aprobar`, { method: "POST" }).then(load)}>
@@ -216,7 +247,7 @@ function PaseadoresAdmin() {
               Eliminar usuario
             </button>
           </div>
-          {viendo === p.id && <DocumentosPaseador paseador={p} onChange={load} />}
+          {(p.estado_verificacion === "pendiente" ? !ocultos[p.id] : viendo === p.id) && <DocumentosPaseador paseador={p} onChange={load} />}
         </article>
       ))}
     </div>
@@ -236,21 +267,31 @@ function DocumentosPaseador({ paseador, onChange }) {
     (async () => {
       try {
         const next = {};
-        for (const [tipo] of DOC_LABELS) {
+        const fallos = [];
+        for (const [tipo, label] of DOC_LABELS) {
           if (!paseador.docs?.[tipo]) continue;
-          const url = await apiBlob(`/api/admin/paseadores/${paseador.id}/documento/${tipo}`);
-          urls.push(url);
-          next[tipo] = url;
+          try {
+            const url = await apiBlob(`/api/admin/paseadores/${paseador.id}/documento/${tipo}`);
+            urls.push(url);
+            next[tipo] = url;
+          } catch (e) {
+            fallos.push(`${label}: ${e.message}`);
+          }
         }
         const prev = {};
         for (const doc of paseador.docs_viejos || []) {
-          const url = await apiBlob(`/api/admin/documentos-historico/${doc.id}`);
-          urls.push(url);
-          prev[doc.id] = url;
+          try {
+            const url = await apiBlob(`/api/admin/documentos-historico/${doc.id}`);
+            urls.push(url);
+            prev[doc.id] = url;
+          } catch (e) {
+            fallos.push(`Anterior ${doc.tipo}: ${e.message}`);
+          }
         }
         if (!cancel) {
           setImgs(next);
           setViejos(prev);
+          if (fallos.length) setError(fallos.join(" · "));
         }
       } catch (e) {
         if (!cancel) setError(e.message);
@@ -269,7 +310,7 @@ function DocumentosPaseador({ paseador, onChange }) {
   }
   return (
     <div className="mt-3 space-y-2">
-      <p className="text-xs text-tinta/60">Revisa que la cédula coincida con la selfie y con el nombre de la cuenta. Después aprueba o rechaza.</p>
+      <p className="text-xs text-tinta/60">Revisá que la cédula coincida con la selfie y con el nombre. Sin ver estos archivos no se autoriza al paseador.</p>
       {error && <p className="text-sm text-greda">{error}</p>}
       {DOC_LABELS.map(([tipo, label]) => (
         <figure key={tipo} className="bg-crema rounded-xl p-2">

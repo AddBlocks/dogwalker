@@ -7,7 +7,7 @@ import { enviarCorreo } from "../services/mail.js";
 import { db, lastId, publicUser } from "../db.js";
 import { auth, signToken } from "../middleware/auth.js";
 import { avisarAdminNuevoRegistro } from "../services/notificaciones.js";
-import { writeEncrypted } from "../services/encryption.js";
+import { sendEncryptedFile, writeEncrypted } from "../services/encryption.js";
 import { leerFechaNacimiento, resolverEdad, validarEdadPaseador } from "../services/cedula.js";
 import { uploadDir } from "./walkers.js";
 
@@ -133,23 +133,83 @@ authRouter.post("/registro", maybeMultipart, async (req, res) => {
   res.status(201).json({ token: signToken(user), user: publicUser(user) });
 });
 
-authRouter.get("/aprobar-paseador", (req, res) => {
-  const pagina = (titulo, cuerpo) =>
-    `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+function paginaAprobar(titulo, cuerpo) {
+  return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
      <title>${titulo}</title>
-     <body style="font-family:sans-serif;background:#F6F1E7;color:#1B1B1B;padding:2rem;max-width:32rem">
-     <h1 style="color:#1B4332">${titulo}</h1><p>${cuerpo}</p></body></html>`;
+     <body style="font-family:sans-serif;background:#F6F1E7;color:#1B1B1B;padding:2rem;max-width:36rem">
+     <h1 style="color:#1B4332">${titulo}</h1>${cuerpo}</body></html>`;
+}
+
+function tokenAprobarDeReq(req) {
+  const payload = jwt.verify(String(req.query.token || ""), SECRET);
+  if (payload.typ !== "aprobar_paseador") throw new Error("token");
+  return payload;
+}
+
+const DOC_APROBAR = [
+  ["cedula_frente", "Cédula — frente"],
+  ["cedula_reverso", "Cédula — reverso"],
+  ["selfie", "Selfie"],
+  ["autorizacion_padres", "Autorización de padres"],
+];
+
+authRouter.get("/aprobar-paseador", (req, res) => {
   try {
-    const payload = jwt.verify(String(req.query.token || ""), SECRET);
-    if (payload.typ !== "aprobar_paseador") throw new Error("token");
+    const payload = tokenAprobarDeReq(req);
     const user = db.prepare("SELECT * FROM users WHERE id = ? AND rol = 'paseador' AND deleted_at IS NULL").get(payload.uid);
-    if (!user) return res.status(404).send(pagina("No encontrado", "No encontramos esa cuenta de paseador."));
-    db.prepare("UPDATE users SET autorizado = 1 WHERE id = ?").run(user.id);
-    res.send(pagina("Cuenta autorizada", `${user.nombre} ya puede entrar a Patitas.`));
+    if (!user) return res.status(404).send(paginaAprobar("No encontrado", "<p>No encontramos esa cuenta de paseador.</p>"));
+    const p = db.prepare("SELECT * FROM paseadores WHERE user_id = ?").get(user.id);
+    if (req.query.confirmar === "1") {
+      if (!p?.cedula_frente) {
+        return res.status(400).send(paginaAprobar("Faltan documentos", "<p>Este paseador no subió la cédula. No se puede autorizar.</p>"));
+      }
+      db.prepare("UPDATE users SET autorizado = 1 WHERE id = ?").run(user.id);
+      return res.send(paginaAprobar("Cuenta autorizada", `<p>${escapeHtml(user.nombre)} ya puede entrar a Patitas.</p>`));
+    }
+    if (user.autorizado) {
+      return res.send(paginaAprobar("Ya estaba autorizada", `<p>${escapeHtml(user.nombre)} ya puede entrar a Patitas.</p>`));
+    }
+    const token = encodeURIComponent(String(req.query.token || ""));
+    const figs = DOC_APROBAR.map(([tipo, label]) => {
+      if (!p?.[tipo]) return `<p style="font-size:14px;color:#555">${label}: no se subió.</p>`;
+      return `<figure style="margin:1rem 0"><figcaption style="font-weight:700;margin-bottom:.4rem">${label}</figcaption>
+        <img src="/api/auth/aprobar-paseador/documento?token=${token}&tipo=${tipo}" alt="${label}" style="width:100%;max-height:28rem;object-fit:contain;background:#fff;border-radius:12px"></figure>`;
+    }).join("");
+    res.send(
+      paginaAprobar(
+        "Revisá los documentos",
+        `<p>Antes de autorizar a <strong>${escapeHtml(user.nombre)}</strong> (${escapeHtml(user.email)}) revisá la cédula y la selfie.</p>
+         ${figs}
+         <p><a href="/api/auth/aprobar-paseador?token=${token}&confirmar=1" style="display:inline-block;background:#1B4332;color:#F6F1E7;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:700">Autorizar cuenta</a></p>`
+      )
+    );
   } catch {
-    res.status(400).send(pagina("Enlace inválido", "Este enlace no es válido o venció. Autorizá desde el panel."));
+    res.status(400).send(paginaAprobar("Enlace inválido", "<p>Este enlace no es válido o venció. Autorizá desde el panel.</p>"));
   }
 });
+
+authRouter.get("/aprobar-paseador/documento", (req, res) => {
+  try {
+    const payload = tokenAprobarDeReq(req);
+    const tipo = { cedula_frente: "cedula_frente", cedula_reverso: "cedula_reverso", selfie: "selfie", autorizacion_padres: "autorizacion_padres" }[req.query.tipo];
+    if (!tipo) return res.status(400).json({ error: "Tipo inválido." });
+    const p = db.prepare("SELECT * FROM paseadores WHERE user_id = ?").get(payload.uid);
+    const sent = sendEncryptedFile(res, p?.[tipo]);
+    if (sent === true) return;
+    if (sent === "error") return res.status(500).json({ error: "No se pudo abrir el documento." });
+    return res.status(404).json({ error: "Documento no encontrado." });
+  } catch {
+    res.status(400).json({ error: "Enlace inválido." });
+  }
+});
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 function claveTemporalVigente(user, password) {
   if (!user?.temp_password_hash || !user.temp_password_expires_at) return false;

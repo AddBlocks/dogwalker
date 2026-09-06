@@ -35,3 +35,27 @@ export function writeEncrypted(dir, filename, buffer) {
 export function deleteFileSafe(filePath) {
   if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
 }
+
+export function sniffImage(buf) {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+  if (buf.length >= 12 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") {
+    return "image/webp";
+  }
+  return "image/jpeg";
+}
+
+/** Envía un archivo cifrado. Devuelve true, false (no está) o "error". */
+export function sendEncryptedFile(res, filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return false;
+  try {
+    const buf = decryptBuffer(fs.readFileSync(filePath));
+    const pdf = buf.length >= 4 && buf.toString("ascii", 0, 4) === "%PDF";
+    res.setHeader("Content-Type", pdf ? "application/pdf" : sniffImage(buf));
+    res.setHeader("Cache-Control", "no-store");
+    res.send(buf);
+    return true;
+  } catch {
+    return "error";
+  }
+}

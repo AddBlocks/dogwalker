@@ -74,7 +74,7 @@ export async function avisarAdminNuevoRegistro(user, extra = {}) {
     `Celular: ${user.telefono || "no indicó"}`,
     `Edad (cédula): ${edadTxt}${extra.fecha_nacimiento ? ` · nacido/a ${extra.fecha_nacimiento}` : ""}`,
     menor ? "Es menor de 18: solo puede pasear razas no peligrosas. Debió adjuntar autorización de los padres." : "Mayor de 18.",
-    `Aprobar ahora: ${aprobar}`,
+    `Revisar documentos y autorizar: ${aprobar}`,
     `Panel: ${panel}`,
   ];
   const text = lineas.join("\n");
@@ -84,8 +84,8 @@ export async function avisarAdminNuevoRegistro(user, extra = {}) {
       <p><strong>${user.nombre}</strong> se registró en Patitas.</p>
       <p>Correo: ${user.email}<br/>Celular: ${user.telefono || "no indicó"}<br/>Edad: ${edadTxt}</p>
       ${menor ? "<p>Menor de 18: autorización de padres adjunta. Solo razas no peligrosas.</p>" : ""}
-      <p><a href="${aprobar}" style="display:inline-block;background:#1B4332;color:#F6F1E7;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:700">Autorizar cuenta</a></p>
-      <p style="font-size:12px;color:#555">O abrí el <a href="${panel}">panel administrador</a>.</p>
+      <p><a href="${aprobar}" style="display:inline-block;background:#1B4332;color:#F6F1E7;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:700">Revisar documentos y autorizar</a></p>
+      <p style="font-size:12px;color:#555">O abrí el <a href="${panel}">panel administrador</a> para ver la cédula y la selfie.</p>
     </div>`;
   if (dest.email) {
     await enviarCorreo({ to: dest.email, subject, text, html }).catch((e) => console.error("[Patitas] correo admin", e));

@@ -1,9 +1,8 @@
 import { Router } from "express";
-import fs from "node:fs";
 import { db, lastId } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { scheduleIdPurge } from "../services/retention.js";
-import { decryptBuffer } from "../services/encryption.js";
+import { sendEncryptedFile } from "../services/encryption.js";
 import { eliminarCuenta } from "../services/cuentas.js";
 import { autorizarBorrado, getHistorico, listarPendientes, listarPendientesDe } from "../services/documentos.js";
 // import { avisarCuentaAutorizada } from "../services/notificaciones.js";
@@ -52,30 +51,13 @@ adminRouter.get("/paseadores/:id/documento/:tipo", (req, res) => {
   const p = db.prepare("SELECT * FROM paseadores WHERE id = ?").get(Number(req.params.id));
   if (!p) return res.status(404).json({ error: "Paseador no encontrado." });
   const filePath = p[col];
-  if (!filePath || !fs.existsSync(filePath)) {
-    return res.status(404).json({
-      error: "Ese documento no está disponible. Puede haber sido reemplazado; el anterior espera autorización para borrar.",
-    });
-  }
-  try {
-    const buf = decryptBuffer(fs.readFileSync(filePath));
-    const pdf = buf.length >= 4 && buf.toString("ascii", 0, 4) === "%PDF";
-    res.setHeader("Content-Type", pdf ? "application/pdf" : sniffImage(buf));
-    res.setHeader("Cache-Control", "no-store");
-    res.send(buf);
-  } catch {
-    res.status(500).json({ error: "No se pudo abrir el documento cifrado." });
-  }
+  const sent = sendEncryptedFile(res, filePath);
+  if (sent === true) return;
+  if (sent === "error") return res.status(500).json({ error: "No se pudo abrir el documento cifrado." });
+  return res.status(404).json({
+    error: "Ese documento no está disponible. Puede haber sido reemplazado; el anterior espera autorización para borrar.",
+  });
 });
-
-function sniffImage(buf) {
-  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
-  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
-  if (buf.length >= 12 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") {
-    return "image/webp";
-  }
-  return "image/jpeg";
-}
 
 adminRouter.get("/documentos-historico", (_req, res) => {
   res.json(listarPendientes());
@@ -84,16 +66,10 @@ adminRouter.get("/documentos-historico", (_req, res) => {
 adminRouter.get("/documentos-historico/:id", (req, res) => {
   const row = getHistorico(req.params.id);
   if (!row || row.borrado_at) return res.status(404).json({ error: "Archivo no encontrado." });
-  if (!fs.existsSync(row.file_path)) return res.status(404).json({ error: "El archivo ya no está en disco." });
-  try {
-    const buf = decryptBuffer(fs.readFileSync(row.file_path));
-    const pdf = buf.length >= 4 && buf.toString("ascii", 0, 4) === "%PDF";
-    res.setHeader("Content-Type", pdf ? "application/pdf" : sniffImage(buf));
-    res.setHeader("Cache-Control", "no-store");
-    res.send(buf);
-  } catch {
-    res.status(500).json({ error: "No se pudo abrir el documento cifrado." });
-  }
+  const sent = sendEncryptedFile(res, row.file_path);
+  if (sent === true) return;
+  if (sent === "error") return res.status(500).json({ error: "No se pudo abrir el documento cifrado." });
+  return res.status(404).json({ error: "El archivo ya no está en disco." });
 });
 
 adminRouter.post("/documentos-historico/:id/autorizar-borrado", (req, res) => {
@@ -224,13 +200,29 @@ adminRouter.get("/usuarios", (_req, res) => {
   const rows = db
     .prepare(
       `SELECT u.id, u.email, u.nombre, u.telefono, u.rol, u.created_at, u.calificacion_promedio, u.autorizado,
-              p.id AS paseador_id, p.estado_verificacion, p.edad, p.solo_no_peligrosas
+              p.id AS paseador_id, p.estado_verificacion, p.edad, p.solo_no_peligrosas,
+              p.cedula_frente, p.cedula_reverso, p.selfie, p.autorizacion_padres
        FROM users u
        LEFT JOIN paseadores p ON p.user_id = u.id
        WHERE u.deleted_at IS NULL AND u.rol IN ('dueno','paseador')
        ORDER BY u.autorizado ASC, u.created_at DESC`
     )
-    .all();
+    .all()
+    .map((u) => ({
+      ...u,
+      tiene_documentos: Boolean(u.cedula_frente || u.cedula_reverso || u.selfie || u.autorizacion_padres),
+      docs_viejos: u.paseador_id ? listarPendientesDe(u.paseador_id) : [],
+      docs: {
+        cedula_frente: Boolean(u.cedula_frente),
+        cedula_reverso: Boolean(u.cedula_reverso),
+        selfie: Boolean(u.selfie),
+        autorizacion_padres: Boolean(u.autorizacion_padres),
+      },
+      cedula_frente: undefined,
+      cedula_reverso: undefined,
+      selfie: undefined,
+      autorizacion_padres: undefined,
+    }));
   res.json(rows);
 });
 
@@ -241,6 +233,10 @@ adminRouter.post("/usuarios/:id/autorizar", async (req, res) => {
   if (!u) return res.status(404).json({ error: "Usuario no encontrado." });
   if (u.rol !== "paseador") {
     return res.status(400).json({ error: "Solo los paseadores requieren autorización." });
+  }
+  const p = db.prepare("SELECT * FROM paseadores WHERE user_id = ?").get(u.id);
+  if (!p?.cedula_frente) {
+    return res.status(400).json({ error: "No se puede autorizar: este paseador no subió la cédula." });
   }
   db.prepare("UPDATE users SET autorizado = 1 WHERE id = ?").run(u.id);
   // const next = db.prepare("SELECT * FROM users WHERE id = ?").get(u.id);
