@@ -11,8 +11,9 @@ export default function Privacidad() {
           identidad. El consentimiento es explícito al registrarte.
         </p>
         <p>
-          Las fotos de cédula se cifran en reposo (AES-256-GCM) y se eliminan 30 días después de la aprobación. No
-          vendemos tus datos. Los teléfonos se muestran solo cuando ambas partes aceptan un paseo.
+          Las fotos de cédula se cifran en reposo (AES-256-GCM). Podés reemplazarlas, pero no borrarlas: la versión
+          anterior se elimina solo si el administrador lo autoriza. No vendemos tus datos. Los teléfonos se muestran
+          solo cuando ambas partes aceptan un paseo.
         </p>
         <p>
           Puedes pedir la eliminación de tu cuenta y datos desde Perfil. Conservamos registros de paseos de forma

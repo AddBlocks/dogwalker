@@ -246,6 +246,12 @@ authRouter.get("/me", auth(true), (req, res) => {
         email_transferencia: paseador.email_transferencia,
         pago_momento: paseador.pago_momento,
         monto_anticipado_clp: paseador.monto_anticipado_clp,
+        docs: {
+          cedula_frente: Boolean(paseador.cedula_frente),
+          cedula_reverso: Boolean(paseador.cedula_reverso),
+          selfie: Boolean(paseador.selfie),
+          autorizacion_padres: Boolean(paseador.autorizacion_padres),
+        },
         calles: (() => {
           try {
             const raw = JSON.parse(paseador.calles_json || "[]");

@@ -1,5 +1,5 @@
 import { db } from "../db.js";
-import { deleteFileSafe } from "./encryption.js";
+import { archivarVigentes, borrarArchivosDeUsuario } from "./documentos.js";
 
 export function eliminarCuenta(userId, { actorId } = {}) {
   const user = db.prepare("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL").get(Number(userId));
@@ -12,11 +12,12 @@ export function eliminarCuenta(userId, { actorId } = {}) {
   }
 
   const p = db.prepare("SELECT * FROM paseadores WHERE user_id = ?").get(user.id);
+  if (actorId) {
+    borrarArchivosDeUsuario(user.id, actorId);
+  } else if (p) {
+    archivarVigentes(p);
+  }
   if (p) {
-    deleteFileSafe(p.cedula_frente);
-    deleteFileSafe(p.cedula_reverso);
-    deleteFileSafe(p.selfie);
-    deleteFileSafe(p.autorizacion_padres);
     db.prepare(
       `UPDATE paseadores SET cedula_frente=NULL, cedula_reverso=NULL, selfie=NULL,
         descripcion=NULL, disponibilidad=NULL, direccion_privada=NULL, lat=NULL, lng=NULL,

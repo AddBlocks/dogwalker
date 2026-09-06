@@ -10,7 +10,14 @@ export default function Perfil() {
   const { user, paseador, logout, refresh } = useAuth();
   const nav = useNavigate();
   const [nombre, setNombre] = useState(user.nombre);
+  const [email, setEmail] = useState(user.email || "");
   const [telefono, setTelefono] = useState(user.telefono || "");
+  const [docsNuevos, setDocsNuevos] = useState({
+    cedula_frente: null,
+    cedula_reverso: null,
+    selfie: null,
+    autorizacion_padres: null,
+  });
   const [pago, setPago] = useState({
     banco: paseador?.banco || "",
     tipo_cuenta: paseador?.tipo_cuenta || "",
@@ -52,12 +59,21 @@ export default function Perfil() {
         method: "PUT",
         body: JSON.stringify({
           nombre,
+          email,
           telefono,
           ...(user.rol === "dueno"
             ? { perro_raza: perro.raza, perro_mezcla: perro.es_mezcla, perro_agresivo: Boolean(perro.agresivo) }
             : {}),
         }),
       });
+      if (user.rol === "paseador" && Object.values(docsNuevos).some(Boolean)) {
+        const fd = new FormData();
+        for (const [k, f] of Object.entries(docsNuevos)) {
+          if (f) fd.append(k, f);
+        }
+        await api("/api/paseadores/verificacion", { method: "POST", body: fd });
+        setDocsNuevos({ cedula_frente: null, cedula_reverso: null, selfie: null, autorizacion_padres: null });
+      }
       if (user.rol === "paseador") {
         await api("/api/paseadores/mi-pago", {
           method: "PUT",
@@ -87,14 +103,38 @@ export default function Perfil() {
       <p className="text-sm capitalize">Rol: {user.rol === "dueno" ? "Dueño" : user.rol}</p>
       <Stars value={user.calificacion_promedio} />
       <form onSubmit={save} className="space-y-2">
-        <input className="w-full rounded-xl border border-arena px-3 py-2" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+        <input className="w-full rounded-xl border border-arena px-3 py-2" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+        <input className="w-full rounded-xl border border-arena px-3 py-2" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <input className="w-full rounded-xl border border-arena px-3 py-2" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Celular" />
         {user.rol === "dueno" && <DatosPerro value={perro} onChange={setPerro} />}
         <p className="text-xs text-tinta/50">Los matches y pedidos se avisan acá en la app, en Solicitudes o Bandeja.</p>
 
         {user.rol === "paseador" && (
           <div className="pt-3 space-y-2">
-            <p className="text-sm font-bold">Transferencia</p>
+            <p className="text-sm font-bold">Documentos de identidad</p>
+            <p className="text-xs text-tinta/60">
+              Podés reemplazar un archivo, no borrarlo. El anterior queda guardado hasta que el administrador autorice eliminarlo.
+            </p>
+            {[
+              ["cedula_frente", "Cédula — frente"],
+              ["cedula_reverso", "Cédula — reverso"],
+              ["selfie", "Selfie"],
+              ["autorizacion_padres", "Autorización de padres (si sos menor)"],
+            ].map(([k, label]) => (
+              <label key={k} className="block text-sm font-bold">
+                {label}
+                <span className="ml-2 font-normal text-tinta/50">
+                  {paseador?.docs?.[k] ? "ya subido · reemplazar" : "aún no subido"}
+                </span>
+                <input
+                  className="mt-1 block w-full font-normal"
+                  type="file"
+                  accept={k === "autorizacion_padres" ? "image/jpeg,image/png,image/webp,application/pdf" : "image/jpeg,image/png,image/webp"}
+                  onChange={(e) => setDocsNuevos((d) => ({ ...d, [k]: e.target.files[0] }))}
+                />
+              </label>
+            ))}
+            <p className="text-sm font-bold pt-2">Transferencia</p>
             <p className="text-xs text-tinta/60">Estos datos se muestran en tu perfil para que el dueño te pague por fuera de la app.</p>
             <select
               className="w-full rounded-xl border border-arena px-3 py-2"
@@ -187,11 +227,9 @@ export default function Perfil() {
         {user.rol === "paseador" && (
           <>
             <Link className="bg-white border border-arena rounded-xl px-3 py-3" to="/mi-oferta">Mi oferta</Link>
-            {paseador?.estado_verificacion !== "aprobado" && (
-              <Link className="bg-white border border-arena rounded-xl px-3 py-3" to="/verificacion">
-                Completar verificación
-              </Link>
-            )}
+            <Link className="bg-white border border-arena rounded-xl px-3 py-3" to="/verificacion">
+              {paseador?.docs?.cedula_frente ? "Actualizar documentos" : "Completar verificación"}
+            </Link>
           </>
         )}
         {user.rol === "admin" && (
@@ -207,7 +245,7 @@ export default function Perfil() {
         Cerrar sesión
       </button>
       <button className="w-full text-xs text-tinta/50" onClick={eliminar}>
-        Eliminar cuenta y datos (Ley 21.719)
+        Eliminar cuenta y datos personales (los archivos de identidad los borra solo el administrador)
       </button>
     </div>
   );

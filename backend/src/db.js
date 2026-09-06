@@ -202,6 +202,7 @@ export function migrate() {
   migrateAvisos();
   migrateEdadYPerro();
   migrateClaveTemporal();
+  migrateDocumentosHistorico();
 }
 
 function tableSql(name) {
@@ -321,6 +322,23 @@ function migrateClaveTemporal() {
   if (!hasColumn("users", "temp_password_hash")) db.exec("ALTER TABLE users ADD COLUMN temp_password_hash TEXT");
   if (!hasColumn("users", "temp_password_expires_at")) db.exec("ALTER TABLE users ADD COLUMN temp_password_expires_at TEXT");
   if (!hasColumn("users", "debe_cambiar_clave")) db.exec("ALTER TABLE users ADD COLUMN debe_cambiar_clave INTEGER DEFAULT 0");
+}
+
+function migrateDocumentosHistorico() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS documentos_historico (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      paseador_id INTEGER NOT NULL REFERENCES paseadores(id),
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      tipo TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      reemplazado_at TEXT DEFAULT (datetime('now')),
+      autorizado_por INTEGER,
+      borrado_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS documentos_historico_pend_idx
+      ON documentos_historico(paseador_id, borrado_at);
+  `);
 }
 
 function migrateAvisos() {

@@ -5,6 +5,7 @@ import { auth, requireRol } from "../middleware/auth.js";
 import { scheduleIdPurge } from "../services/retention.js";
 import { decryptBuffer } from "../services/encryption.js";
 import { eliminarCuenta } from "../services/cuentas.js";
+import { autorizarBorrado, getHistorico, listarPendientes, listarPendientesDe } from "../services/documentos.js";
 // import { avisarCuentaAutorizada } from "../services/notificaciones.js";
 
 export const adminRouter = Router();
@@ -23,6 +24,7 @@ adminRouter.get("/paseadores", (_req, res) => {
       ...p,
       destacado: !!p.destacado,
       tiene_documentos: Boolean(p.cedula_frente || p.cedula_reverso || p.selfie || p.autorizacion_padres),
+      docs_viejos: listarPendientesDe(p.id),
       docs: {
         cedula_frente: Boolean(p.cedula_frente),
         cedula_reverso: Boolean(p.cedula_reverso),
@@ -52,7 +54,7 @@ adminRouter.get("/paseadores/:id/documento/:tipo", (req, res) => {
   const filePath = p[col];
   if (!filePath || !fs.existsSync(filePath)) {
     return res.status(404).json({
-      error: "Ese documento no está disponible. Si ya lo aprobaste, se borra a los 30 días.",
+      error: "Ese documento no está disponible. Puede haber sido reemplazado; el anterior espera autorización para borrar.",
     });
   }
   try {
@@ -74,6 +76,31 @@ function sniffImage(buf) {
   }
   return "image/jpeg";
 }
+
+adminRouter.get("/documentos-historico", (_req, res) => {
+  res.json(listarPendientes());
+});
+
+adminRouter.get("/documentos-historico/:id", (req, res) => {
+  const row = getHistorico(req.params.id);
+  if (!row || row.borrado_at) return res.status(404).json({ error: "Archivo no encontrado." });
+  if (!fs.existsSync(row.file_path)) return res.status(404).json({ error: "El archivo ya no está en disco." });
+  try {
+    const buf = decryptBuffer(fs.readFileSync(row.file_path));
+    const pdf = buf.length >= 4 && buf.toString("ascii", 0, 4) === "%PDF";
+    res.setHeader("Content-Type", pdf ? "application/pdf" : sniffImage(buf));
+    res.setHeader("Cache-Control", "no-store");
+    res.send(buf);
+  } catch {
+    res.status(500).json({ error: "No se pudo abrir el documento cifrado." });
+  }
+});
+
+adminRouter.post("/documentos-historico/:id/autorizar-borrado", (req, res) => {
+  const result = autorizarBorrado(req.params.id, req.user.id);
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  res.json({ ok: true });
+});
 
 adminRouter.post("/paseadores/:id/aprobar", (req, res) => {
   const p = db.prepare("SELECT * FROM paseadores WHERE id = ?").get(Number(req.params.id));

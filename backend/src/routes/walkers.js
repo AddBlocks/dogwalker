@@ -5,6 +5,7 @@ import multer from "multer";
 import { db } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { writeEncrypted } from "../services/encryption.js";
+import { archivarReemplazos } from "../services/documentos.js";
 import { submitVerification, verificationProviderName } from "../services/verification.js";
 import { leerFechaNacimiento, resolverEdad, validarEdadPaseador } from "../services/cedula.js";
 import { geocodeSantiago, haversineKm } from "../services/geocode.js";
@@ -247,26 +248,48 @@ walkersRouter.post(
   async (req, res) => {
     try {
       const files = req.files || {};
-      if (!files.cedula_frente?.[0] || !files.cedula_reverso?.[0] || !files.selfie?.[0]) {
+      const p = db.prepare("SELECT * FROM paseadores WHERE user_id = ?").get(req.user.id);
+      if (!p) return res.status(404).json({ error: "Perfil de paseador no encontrado." });
+      const primeraVez = !p.cedula_frente && !p.cedula_reverso && !p.selfie;
+      if (primeraVez && (!files.cedula_frente?.[0] || !files.cedula_reverso?.[0] || !files.selfie?.[0])) {
         return res.status(400).json({ error: "Subí cédula por ambos lados y una selfie." });
       }
-      const ocrIso = await leerFechaNacimiento(files.cedula_frente[0].buffer);
-      const edadInfo = resolverEdad({ ocrIso, fechaFormulario: req.body?.fecha_nacimiento });
+      if (!files.cedula_frente?.[0] && !p.cedula_frente) {
+        return res.status(400).json({ error: "Subí el frente de la cédula." });
+      }
+      const bufferFrente = files.cedula_frente?.[0]?.buffer;
+      const ocrIso = bufferFrente ? await leerFechaNacimiento(bufferFrente) : p.fecha_nacimiento;
+      const edadInfo = resolverEdad({
+        ocrIso: bufferFrente ? ocrIso : null,
+        fechaFormulario: req.body?.fecha_nacimiento || p.fecha_nacimiento,
+      });
       const v = validarEdadPaseador(edadInfo.edad);
       if (v.error) return res.status(400).json({ error: v.error });
-      if (v.menor && !files.autorizacion_padres?.[0]) {
+      if (v.menor && !files.autorizacion_padres?.[0] && !p.autorizacion_padres) {
         return res.status(400).json({
           error: "Si tenés menos de 18 años, subí una autorización simple de tus padres para pasear razas no peligrosas.",
         });
       }
-      const p = db.prepare("SELECT * FROM paseadores WHERE user_id = ?").get(req.user.id);
       const stamp = `${req.user.id}-${Date.now()}`;
-      const frente = writeEncrypted(uploadDir, `${stamp}-frente.bin`, files.cedula_frente[0].buffer);
-      const reverso = writeEncrypted(uploadDir, `${stamp}-reverso.bin`, files.cedula_reverso[0].buffer);
-      const selfie = writeEncrypted(uploadDir, `${stamp}-selfie.bin`, files.selfie[0].buffer);
+      const frente = files.cedula_frente?.[0]
+        ? writeEncrypted(uploadDir, `${stamp}-frente.bin`, files.cedula_frente[0].buffer)
+        : p.cedula_frente;
+      const reverso = files.cedula_reverso?.[0]
+        ? writeEncrypted(uploadDir, `${stamp}-reverso.bin`, files.cedula_reverso[0].buffer)
+        : p.cedula_reverso;
+      const selfie = files.selfie?.[0]
+        ? writeEncrypted(uploadDir, `${stamp}-selfie.bin`, files.selfie[0].buffer)
+        : p.selfie;
       const authPadres = files.autorizacion_padres?.[0]
         ? writeEncrypted(uploadDir, `${stamp}-padres.bin`, files.autorizacion_padres[0].buffer)
-        : null;
+        : p.autorizacion_padres;
+      const nextPaths = {
+        cedula_frente: frente,
+        cedula_reverso: reverso,
+        selfie,
+        autorizacion_padres: authPadres,
+      };
+      archivarReemplazos(p, nextPaths);
 
       const result = await submitVerification({ userId: req.user.id });
       db.prepare(

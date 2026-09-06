@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 
 export default function Verificacion() {
   const nav = useNavigate();
+  const { paseador } = useAuth();
+  const docs = paseador?.docs || {};
   const [files, setFiles] = useState({ cedula_frente: null, cedula_reverso: null, selfie: null, autorizacion_padres: null });
   const [fechaNacimiento, setFechaNacimiento] = useState("");
   const [msg, setMsg] = useState("");
@@ -14,7 +17,9 @@ export default function Verificacion() {
     setError("");
     const fd = new FormData();
     for (const k of Object.keys(files)) {
-      if (k !== "autorizacion_padres" && !files[k]) return setError("Subí las tres fotos: cédula frente, reverso y selfie.");
+      if (k !== "autorizacion_padres" && !files[k] && !docs[k]) {
+        return setError("Subí las tres fotos: cédula frente, reverso y selfie. Si ya están, solo reemplazá las que quieras actualizar.");
+      }
       if (files[k]) fd.append(k, files[k]);
     }
     if (fechaNacimiento) fd.append("fecha_nacimiento", fechaNacimiento);
@@ -30,8 +35,8 @@ export default function Verificacion() {
     <div className="min-h-dvh bg-crema px-5 py-8">
       <h1 className="font-display text-3xl text-bosque">Verificación de identidad</h1>
       <p className="text-sm mt-2 text-tinta/70">
-        Subí tu cédula por ambos lados y una selfie. Las imágenes se cifran y se borran 30 días después de la aprobación.
-        No apareces en el mapa hasta que te aprueben.
+        Subí tu cédula por ambos lados y una selfie. Las imágenes se cifran. Podés reemplazarlas, pero no borrarlas:
+        la versión anterior queda hasta que el administrador autorice eliminarla. No aparecés en el mapa hasta que te aprueben.
       </p>
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         {[
@@ -42,6 +47,7 @@ export default function Verificacion() {
         ].map(([k, label]) => (
           <label key={k} className="block text-sm font-bold">
             {label}
+            {docs[k] && <span className="ml-2 font-normal text-tinta/50">ya subido · reemplazar</span>}
             <input className="mt-1 block w-full" type="file" accept={k === "autorizacion_padres" ? "image/jpeg,image/png,image/webp,application/pdf" : "image/jpeg,image/png,image/webp"} onChange={(e) => setFiles((f) => ({ ...f, [k]: e.target.files[0] }))} />
           </label>
         ))}

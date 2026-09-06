@@ -5,6 +5,13 @@ const TABS = ["Usuarios", "Paseadores", "Comercios", "Anuncios", "Métricas"];
 
 const ROL_LABEL = { dueno: "Dueño", paseador: "Paseador", admin: "Admin" };
 
+const DOC_LABELS = [
+  ["cedula_frente", "Cédula — frente"],
+  ["cedula_reverso", "Cédula — reverso"],
+  ["selfie", "Selfie"],
+  ["autorizacion_padres", "Autorización de padres"],
+];
+
 async function borrarUsuario(userId, nombre) {
   if (!confirm(`¿Eliminar la cuenta de ${nombre}? Se borran sus datos personales y no podrá entrar.`)) return false;
   await api(`/api/admin/usuarios/${userId}`, { method: "DELETE" });
@@ -116,10 +123,12 @@ function UsuariosAdmin() {
 
 function PaseadoresAdmin() {
   const [rows, setRows] = useState([]);
+  const [pendientes, setPendientes] = useState([]);
   const [viendo, setViendo] = useState(null);
   const [error, setError] = useState("");
   function load() {
     api("/api/admin/paseadores").then(setRows);
+    api("/api/admin/documentos-historico").then(setPendientes).catch(() => setPendientes([]));
   }
   useEffect(load, []);
 
@@ -139,9 +148,37 @@ function PaseadoresAdmin() {
     }
   }
 
+  const sueltos = pendientes.filter((d) => d.deleted_at || !rows.some((p) => p.id === d.paseador_id));
+  const DOC_NOMBRE = Object.fromEntries(DOC_LABELS);
+
   return (
     <div className="space-y-3">
       {error && <p className="text-sm text-greda">{error}</p>}
+      {sueltos.length > 0 && (
+        <article className="bg-white border border-greda/40 rounded-2xl p-3 space-y-2">
+          <p className="font-bold text-sm">Archivos anteriores pendientes de borrar</p>
+          <p className="text-xs text-tinta/60">Cuentas ya eliminadas o archivos reemplazados. Solo se borran si lo autorizás.</p>
+          {sueltos.map((d) => (
+            <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span>
+                {d.nombre} · {d.email} · {DOC_NOMBRE[d.tipo] || d.tipo}
+                {d.deleted_at ? " · cuenta eliminada" : ""}
+              </span>
+              <button
+                className="font-bold border border-greda text-greda px-3 py-1 rounded-full"
+                onClick={() => {
+                  if (!confirm("¿Autorizar el borrado de este archivo anterior?")) return;
+                  api(`/api/admin/documentos-historico/${d.id}/autorizar-borrado`, { method: "POST" })
+                    .then(load)
+                    .catch((e) => setError(e.message));
+                }}
+              >
+                Autorizar borrado
+              </button>
+            </div>
+          ))}
+        </article>
+      )}
       {rows.length === 0 && <p className="text-sm text-tinta/60">Cuando un paseador se registre, aparece acá para revisión.</p>}
       {rows.map((p) => (
         <article key={p.id} className="bg-white border border-arena rounded-2xl p-3">
@@ -152,7 +189,7 @@ function PaseadoresAdmin() {
             {p.solo_no_peligrosas ? " · solo razas no peligrosas" : ""}
             {p.fecha_nacimiento ? ` · nac. ${p.fecha_nacimiento}` : ""}
           </p>
-          <p className="text-xs text-tinta/50">Proveedor: {p.proveedor_verificacion || "—"} {p.tiene_documentos ? "· documentos subidos" : "· sin documentos"}</p>
+          <p className="text-xs text-tinta/50">Proveedor: {p.proveedor_verificacion || "—"} {p.tiene_documentos ? "· documentos vigentes" : "· sin documentos"}{p.docs_viejos?.length ? ` · ${p.docs_viejos.length} anterior${p.docs_viejos.length === 1 ? "" : "es"} pendiente${p.docs_viejos.length === 1 ? "" : "s"} de borrar` : ""}</p>
           <p className="text-sm">{p.descripcion}</p>
           <p className="text-xs text-tinta/50">{p.radio_km ? `Zona de ${p.radio_km} km (la dirección queda privada)` : "Sin zona de paseo"}</p>
           <div className="flex flex-wrap gap-2 mt-2 text-xs font-bold">
@@ -179,28 +216,23 @@ function PaseadoresAdmin() {
               Eliminar usuario
             </button>
           </div>
-          {viendo === p.id && <DocumentosPaseador paseador={p} />}
+          {viendo === p.id && <DocumentosPaseador paseador={p} onChange={load} />}
         </article>
       ))}
     </div>
   );
 }
 
-const DOC_LABELS = [
-  ["cedula_frente", "Cédula — frente"],
-  ["cedula_reverso", "Cédula — reverso"],
-  ["selfie", "Selfie"],
-  ["autorizacion_padres", "Autorización de padres"],
-];
-
-function DocumentosPaseador({ paseador }) {
+function DocumentosPaseador({ paseador, onChange }) {
   const [imgs, setImgs] = useState({});
+  const [viejos, setViejos] = useState({});
   const [error, setError] = useState("");
   useEffect(() => {
     let cancel = false;
     const urls = [];
     setError("");
     setImgs({});
+    setViejos({});
     (async () => {
       try {
         const next = {};
@@ -210,7 +242,16 @@ function DocumentosPaseador({ paseador }) {
           urls.push(url);
           next[tipo] = url;
         }
-        if (!cancel) setImgs(next);
+        const prev = {};
+        for (const doc of paseador.docs_viejos || []) {
+          const url = await apiBlob(`/api/admin/documentos-historico/${doc.id}`);
+          urls.push(url);
+          prev[doc.id] = url;
+        }
+        if (!cancel) {
+          setImgs(next);
+          setViejos(prev);
+        }
       } catch (e) {
         if (!cancel) setError(e.message);
       }
@@ -219,9 +260,11 @@ function DocumentosPaseador({ paseador }) {
       cancel = true;
       urls.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [paseador.id, paseador.docs]);
+  }, [paseador.id, paseador.docs, paseador.docs_viejos]);
 
-  if (!paseador.tiene_documentos) {
+  const labels = Object.fromEntries(DOC_LABELS);
+
+  if (!paseador.tiene_documentos && !paseador.docs_viejos?.length) {
     return <p className="text-sm text-greda mt-3">Este paseador aún no sube cédula ni selfie.</p>;
   }
   return (
@@ -230,7 +273,7 @@ function DocumentosPaseador({ paseador }) {
       {error && <p className="text-sm text-greda">{error}</p>}
       {DOC_LABELS.map(([tipo, label]) => (
         <figure key={tipo} className="bg-crema rounded-xl p-2">
-          <figcaption className="text-xs font-bold mb-1">{label}</figcaption>
+          <figcaption className="text-xs font-bold mb-1">{label} (vigente)</figcaption>
           {imgs[tipo] ? (
             <img src={imgs[tipo]} alt={label} className="w-full max-h-80 object-contain rounded-lg bg-white" />
           ) : paseador.docs?.[tipo] ? (
@@ -238,6 +281,29 @@ function DocumentosPaseador({ paseador }) {
           ) : (
             <p className="text-xs text-tinta/50">No se subió este lado.</p>
           )}
+        </figure>
+      ))}
+      {(paseador.docs_viejos || []).map((doc) => (
+        <figure key={doc.id} className="bg-white border border-greda/40 rounded-xl p-2">
+          <figcaption className="text-xs font-bold mb-1 text-greda">
+            Anterior: {labels[doc.tipo] || doc.tipo} · {doc.reemplazado_at}
+          </figcaption>
+          {viejos[doc.id] ? (
+            <img src={viejos[doc.id]} alt={doc.tipo} className="w-full max-h-80 object-contain rounded-lg bg-crema" />
+          ) : (
+            <p className="text-xs">Cargando…</p>
+          )}
+          <button
+            className="mt-2 text-xs font-bold border border-greda text-greda px-3 py-1 rounded-full"
+            onClick={() => {
+              if (!confirm("¿Autorizar el borrado de este archivo anterior? No se puede deshacer.")) return;
+              api(`/api/admin/documentos-historico/${doc.id}/autorizar-borrado`, { method: "POST" })
+                .then(() => onChange?.())
+                .catch((e) => setError(e.message));
+            }}
+          >
+            Autorizar borrado
+          </button>
         </figure>
       ))}
     </div>

@@ -6,12 +6,22 @@ import { eliminarCuenta } from "../services/cuentas.js";
 export const usersRouter = Router();
 
 usersRouter.put("/me", auth(true), (req, res) => {
-  const { nombre, telefono, perro_raza, perro_mezcla, perro_agresivo } = req.body || {};
+  const { nombre, telefono, email, perro_raza, perro_mezcla, perro_agresivo } = req.body || {};
+  let nextEmail = req.user.email;
+  if (email !== undefined) {
+    nextEmail = String(email || "").trim().toLowerCase();
+    if (!nextEmail.includes("@")) return res.status(400).json({ error: "Ingresá un correo válido." });
+    const taken = db
+      .prepare("SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL")
+      .get(nextEmail, req.user.id);
+    if (taken) return res.status(409).json({ error: "Ese correo ya está en uso." });
+  }
   db.prepare(
-    `UPDATE users SET nombre = ?, telefono = ?, perro_raza = ?, perro_mezcla = ?, perro_agresivo = ? WHERE id = ?`
+    `UPDATE users SET nombre = ?, telefono = ?, email = ?, perro_raza = ?, perro_mezcla = ?, perro_agresivo = ? WHERE id = ?`
   ).run(
     nombre || req.user.nombre,
     telefono !== undefined ? telefono || null : req.user.telefono,
+    nextEmail,
     perro_raza !== undefined ? String(perro_raza || "").trim() || null : req.user.perro_raza,
     perro_mezcla === undefined ? Number(req.user.perro_mezcla || 0) : perro_mezcla ? 1 : 0,
     perro_agresivo === undefined ? Number(req.user.perro_agresivo || 0) : perro_agresivo ? 1 : 0,
