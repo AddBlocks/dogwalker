@@ -2,10 +2,11 @@ import { Router } from "express";
 import { db, lastId } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { haversineKm } from "../services/geocode.js";
+import { avisarMatch, avisarSolicitudAPaseador } from "../services/notificaciones.js";
 
 export const solicitudesRouter = Router();
 
-solicitudesRouter.post("/", auth(true), requireRol("dueno"), (req, res) => {
+solicitudesRouter.post("/", auth(true), requireRol("dueno"), async (req, res) => {
   const { paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje } = req.body || {};
   if (!comuna_id || !horario || !frecuencia || !monto_clp) {
     return res.status(400).json({ error: "Completa comuna, horario, frecuencia y monto." });
@@ -35,6 +36,14 @@ solicitudesRouter.post("/", auth(true), requireRol("dueno"), (req, res) => {
       mensaje || null,
       estado
     );
+  if (paseador_id) {
+    const walker = db.prepare("SELECT * FROM users WHERE id = ?").get(Number(paseador_id));
+    avisarSolicitudAPaseador({
+      walker,
+      dueno: req.user,
+      solicitud: { horario, frecuencia },
+    });
+  }
   res.status(201).json({ id: lastId(r), estado });
 });
 
@@ -90,7 +99,7 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
   res.json([]);
 });
 
-solicitudesRouter.post("/:id/aceptar", auth(true), requireRol("paseador"), (req, res) => {
+solicitudesRouter.post("/:id/aceptar", auth(true), requireRol("paseador"), async (req, res) => {
   const s = db.prepare("SELECT * FROM solicitudes WHERE id = ?").get(Number(req.params.id));
   if (!s) return res.status(404).json({ error: "Solicitud no existe." });
   if (s.estado !== "pendiente" && s.estado !== "abierta") {
@@ -116,7 +125,12 @@ solicitudesRouter.post("/:id/aceptar", auth(true), requireRol("paseador"), (req,
     )
     .run(s.id, s.dueno_id, req.user.id, s.comuna_id, fecha, s.monto_clp);
 
-  const dueno = db.prepare("SELECT telefono, nombre FROM users WHERE id = ?").get(s.dueno_id);
+  const dueno = db.prepare("SELECT * FROM users WHERE id = ?").get(s.dueno_id);
+  avisarMatch({
+    dueno,
+    walker: req.user,
+    solicitud: s,
+  });
   res.json({
     ok: true,
     paseo_id: lastId(paseo),

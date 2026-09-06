@@ -33,6 +33,7 @@ export default function Perfil() {
       <form onSubmit={save} className="space-y-2">
         <input className="w-full rounded-xl border border-arena px-3 py-2" value={nombre} onChange={(e) => setNombre(e.target.value)} />
         <input className="w-full rounded-xl border border-arena px-3 py-2" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Celular" />
+        <p className="text-xs text-tinta/50">Los matches y pedidos se avisan acá en la app, en Solicitudes o Bandeja.</p>
         <button className="w-full bg-bosque text-crema rounded-xl py-2 font-bold">Guardar</button>
       </form>
       {msg && <p className="text-sm text-bosque-claro">{msg}</p>}

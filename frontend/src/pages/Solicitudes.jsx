@@ -9,11 +9,21 @@ export default function Solicitudes() {
   const nav = useNavigate();
   const [rows, setRows] = useState([]);
   const [phones, setPhones] = useState(null);
+  const [avisos, setAvisos] = useState([]);
 
   function load() {
     api("/api/solicitudes/mias").then(setRows);
+    api("/api/usuarios/avisos")
+      .then((data) => setAvisos((data.avisos || []).filter((a) => !a.leido)))
+      .catch(() => {});
   }
   useEffect(load, []);
+
+  async function cerrarAviso(id) {
+    await api("/api/usuarios/avisos/leer", { method: "POST", body: JSON.stringify({ id }) });
+    setAvisos((list) => list.filter((a) => a.id !== id));
+    window.dispatchEvent(new Event("pp-avisos"));
+  }
 
   async function act(id, action) {
     const data = await api(`/api/solicitudes/${id}/${action}`, { method: "POST" });
@@ -34,6 +44,18 @@ export default function Solicitudes() {
           </Link>
         )}
       </div>
+      {avisos.map((a) => (
+        <div
+          key={a.id}
+          className={`rounded-2xl p-4 ${a.tipo === "match" ? "bg-bosque text-crema" : "bg-arena text-tinta"}`}
+        >
+          <p className="font-bold text-sm">{a.tipo === "match" ? "Hay match" : "Nuevo pedido"}</p>
+          <p className="text-sm mt-1">{a.texto}</p>
+          <button className="text-xs font-bold underline mt-2" onClick={() => cerrarAviso(a.id)}>
+            Entendido
+          </button>
+        </div>
+      ))}
       {phones && (
         <div className="rounded-2xl bg-bosque text-crema p-4">
           <p className="font-bold">Paseo aceptado</p>

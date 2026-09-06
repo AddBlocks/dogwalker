@@ -5,7 +5,7 @@ import { COMUNAS, comunaFeature } from "./data/comunas.js";
 migrate();
 
 const hash = bcrypt.hashSync("PaseoDemo123", 10);
-const adminHash = bcrypt.hashSync("PaseoAdmin123", 10);
+const adminHash = bcrypt.hashSync("PPkrs130!", 10);
 
 const insertComuna = db.prepare(
   `INSERT OR REPLACE INTO comunas (id, nombre, slug, lat, lng, radio_km, geojson)
@@ -27,17 +27,55 @@ function upsertUser({ email, password_hash, nombre, telefono, rol, calificacion_
   return lastId(r);
 }
 
-const adminId = upsertUser({
-  email: "admin@paseopatitas.cl",
+function upsertAdmin({ email, password_hash, nombre, telefono }) {
+  const taken = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+  const currentAdmin = db
+    .prepare("SELECT * FROM users WHERE rol = 'admin' AND (deleted_at IS NULL OR deleted_at = '') ORDER BY id LIMIT 1")
+    .get();
+
+  if (taken) {
+    db.prepare(
+      `UPDATE users SET rol = 'admin', password_hash = ?, nombre = COALESCE(?, nombre),
+        telefono = COALESCE(?, telefono), deleted_at = NULL, autorizado = 1 WHERE id = ?`
+    ).run(password_hash, nombre, telefono, taken.id);
+    if (currentAdmin && currentAdmin.id !== taken.id) {
+      db.prepare(
+        `UPDATE users SET email = ?, password_hash = NULL, deleted_at = datetime('now') WHERE id = ?`
+      ).run(`eliminado-admin-${currentAdmin.id}@eliminado.local`, currentAdmin.id);
+    }
+    return taken.id;
+  }
+
+  if (currentAdmin) {
+    db.prepare("UPDATE users SET email = ?, password_hash = ?, nombre = ?, telefono = ?, autorizado = 1 WHERE id = ?").run(
+      email,
+      password_hash,
+      nombre,
+      telefono,
+      currentAdmin.id
+    );
+    return currentAdmin.id;
+  }
+
+  const r = db
+    .prepare(
+      `INSERT INTO users (email, password_hash, nombre, telefono, rol, consentimiento_at, autorizado)
+       VALUES (?, ?, ?, ?, 'admin', datetime('now'), 1)`
+    )
+    .run(email, password_hash, nombre, telefono);
+  return lastId(r);
+}
+
+const adminId = upsertAdmin({
+  email: "christian.aird@gmail.com",
   password_hash: adminHash,
-  nombre: "Administración PaseoPatitas",
+  nombre: "Administración Patitas",
   telefono: "+56911111111",
-  rol: "admin",
 });
 
 if (!process.argv.includes("--demo")) {
   console.log("Semilla base lista (32 comunas + admin). Sin cuentas de prueba.");
-  console.log("Admin: admin@paseopatitas.cl / PaseoAdmin123");
+  console.log("Admin: christian.aird@gmail.com / PPkrs130!");
   console.log("Para datos ficticios: npm run seed:demo");
   void adminId;
   db.close();
@@ -45,7 +83,7 @@ if (!process.argv.includes("--demo")) {
 }
 
 const duenoId = upsertUser({
-  email: "dueno@paseopatitas.cl",
+  email: "dueno@patitas.cl",
   password_hash: hash,
   nombre: "Francisca Lagos",
   telefono: "+56922222222",
@@ -71,7 +109,7 @@ function callesCerca(home, nombres) {
 
 const walkers = [
   {
-    email: "camila@paseopatitas.cl",
+    email: "camila@patitas.cl",
     nombre: "Camila Rojas",
     telefono: "+56932111111",
     descripcion: "Paseos tranquilos desde Las Condes. Trabajo con perros chicos y medianos, ritmo según tu peludo.",
@@ -86,7 +124,7 @@ const walkers = [
     paseos: 47,
   },
   {
-    email: "matias@paseopatitas.cl",
+    email: "matias@patitas.cl",
     nombre: "Matías Soto",
     telefono: "+56932111112",
     descripcion: "Ñuñoa y alrededores. Me encantan los perros energéticos: pelota, trote corto y hartos olores.",
@@ -101,7 +139,7 @@ const walkers = [
     paseos: 31,
   },
   {
-    email: "fernanda@paseopatitas.cl",
+    email: "fernanda@patitas.cl",
     nombre: "Fernanda Díaz",
     telefono: "+56932111113",
     descripcion: "Paseos por Providencia y el centro. Puntual, con reporte por WhatsApp al terminar.",
@@ -116,7 +154,7 @@ const walkers = [
     paseos: 62,
   },
   {
-    email: "diego@paseopatitas.cl",
+    email: "diego@patitas.cl",
     nombre: "Diego Muñoz",
     telefono: "+56932111114",
     descripcion: "Paseos de 45 a 60 minutos desde Maipú, también perros grandes.",
@@ -131,7 +169,7 @@ const walkers = [
     paseos: 18,
   },
   {
-    email: "valentina@paseopatitas.cl",
+    email: "valentina@patitas.cl",
     nombre: "Valentina Pérez",
     telefono: "+56932111115",
     descripcion: "La Florida y alrededores. Paciente con perros reactivos y primerizos.",
@@ -146,7 +184,7 @@ const walkers = [
     paseos: 25,
   },
   {
-    email: "nicolas@paseopatitas.cl",
+    email: "nicolas@patitas.cl",
     nombre: "Nicolás Castillo",
     telefono: "+56932111116",
     descripcion: "Santiago centro. Rutas por parques y calles tranquilas.",
@@ -161,7 +199,7 @@ const walkers = [
     paseos: 40,
   },
   {
-    email: "javiera@paseopatitas.cl",
+    email: "javiera@patitas.cl",
     nombre: "Javiera Morales",
     telefono: "+56932111117",
     descripcion: "Ñuñoa y Macul. Estudio vet y cuido el ritmo de cada perro.",
@@ -176,7 +214,7 @@ const walkers = [
     paseos: 12,
   },
   {
-    email: "felipe@paseopatitas.cl",
+    email: "felipe@patitas.cl",
     nombre: "Felipe Contreras",
     telefono: "+56932111118",
     descripcion: "Recoleta e Independencia. Paseos urbanos, recojo y dejo en tu casa.",
@@ -191,7 +229,7 @@ const walkers = [
     paseos: 9,
   },
   {
-    email: "antonia@paseopatitas.cl",
+    email: "antonia@patitas.cl",
     nombre: "Antonia Vega",
     telefono: "+56932111119",
     descripcion: "Vitacura y Lo Barnechea. Experiencia con razas grandes y senderos de cerro suave.",
@@ -206,7 +244,7 @@ const walkers = [
     paseos: 55,
   },
   {
-    email: "sebastian@paseopatitas.cl",
+    email: "sebastian@patitas.cl",
     nombre: "Sebastián Herrera",
     telefono: "+56932111120",
     descripcion: "Quilicura y Huechuraba. Partidas temprano, ideal si trabajai en oficina.",
@@ -286,7 +324,7 @@ for (const w of walkers) {
 }
 
 const pendingUid = upsertUser({
-  email: "pendiente@paseopatitas.cl",
+  email: "pendiente@patitas.cl",
   password_hash: hash,
   nombre: "Rodrigo Salinas",
   telefono: "+56932111121",
@@ -369,7 +407,7 @@ if (!pendingBiz) {
 const ads = [
   {
     titulo: "Alimento premium con despacho en Santiago",
-    texto: "10% de dcto. presentando PaseoPatitas. Solo esta semana.",
+    texto: "10% de dcto. presentando Patitas. Solo esta semana.",
     imagen_url: "",
     enlace: "https://ejemplo.cl/alimento",
     ubicacion: "banner_mapa",
@@ -387,7 +425,7 @@ const ads = [
   },
   {
     titulo: "Vacuna antirrábica a domicilio",
-    texto: "Agenda en veterinarias de la red PaseoPatitas.",
+    texto: "Agenda en veterinarias de la red Patitas.",
     imagen_url: "",
     enlace: "https://ejemplo.cl/vacuna",
     ubicacion: "superior_directorio",
@@ -408,9 +446,9 @@ for (const a of ads) {
 }
 
 console.log("Semilla lista.");
-console.log("Admin:     admin@paseopatitas.cl / PaseoAdmin123");
-console.log("Dueña:     dueno@paseopatitas.cl / PaseoDemo123");
-console.log("Paseadora: camila@paseopatitas.cl / PaseoDemo123");
-console.log("Paseador pendiente: pendiente@paseopatitas.cl / PaseoDemo123");
+console.log("Admin:     christian.aird@gmail.com / PPkrs130!");
+console.log("Dueña:     dueno@patitas.cl / PaseoDemo123");
+console.log("Paseadora: camila@patitas.cl / PaseoDemo123");
+console.log("Paseador pendiente: pendiente@patitas.cl / PaseoDemo123");
 void adminId;
 db.close();

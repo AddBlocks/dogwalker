@@ -47,10 +47,7 @@ export function AuthProvider({ children }) {
         return data.user;
       },
       async registro(payload) {
-        const data = await api("/api/auth/registro", { method: "POST", body: JSON.stringify(payload) });
-        setToken(data.token);
-        await refresh();
-        return data.user;
+        return api("/api/auth/registro", { method: "POST", body: JSON.stringify(payload) });
       },
       logout() {
         setToken(null);

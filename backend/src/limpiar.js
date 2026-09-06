@@ -30,13 +30,13 @@ for (const c of COMUNAS) {
   insertComuna.run(c.id, c.nombre, c.slug, c.lat, c.lng, c.radioKm, JSON.stringify(comunaFeature(c)));
 }
 
-const adminHash = bcrypt.hashSync("PaseoAdmin123", 10);
+const adminHash = bcrypt.hashSync("PPkrs130!", 10);
 const admin = db
   .prepare(
-    `INSERT INTO users (email, password_hash, nombre, telefono, rol, consentimiento_at)
-     VALUES (?, ?, ?, ?, 'admin', datetime('now'))`
+    `INSERT INTO users (email, password_hash, nombre, telefono, rol, consentimiento_at, autorizado, notify_email, notify_sms)
+     VALUES (?, ?, ?, ?, 'admin', datetime('now'), 1, 1, 1)`
   )
-  .run("admin@paseopatitas.cl", adminHash, "Administración PaseoPatitas", "+56911111111");
+  .run("christian.aird@gmail.com", adminHash, "Administración Patitas", "+56911111111");
 
 const uploadDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads", "ids");
 if (fs.existsSync(uploadDir)) {
@@ -51,6 +51,6 @@ const nComunas = db.prepare("SELECT COUNT(*) AS n FROM comunas").get().n;
 
 console.log("Base limpia. Listo para personas reales.");
 console.log(`Comunas: ${nComunas} · usuarios: ${nUsers} · paseadores: ${nWalkers}`);
-console.log("Admin: admin@paseopatitas.cl / PaseoAdmin123");
+console.log("Admin: christian.aird@gmail.com / PPkrs130!");
 void lastId(admin);
 db.close();

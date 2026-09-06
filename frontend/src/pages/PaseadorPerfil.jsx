@@ -30,10 +30,14 @@ export default function PaseadorPerfil() {
       </div>
       <p>{w.descripcion}</p>
       <p className="text-sm"><strong>Disponibilidad:</strong> {w.disponibilidad}</p>
-      <p className="text-sm"><strong>Zona de paseo:</strong> {w.radio_km ? `${w.radio_km} km a la redonda` : "Sin zona publicada"}</p>
-      {w.calles?.length > 0 && (
-        <p className="text-sm"><strong>Calles de referencia:</strong> {w.calles.map((c) => c.nombre || c).join(", ")}</p>
-      )}
+      <p className="text-sm">
+        <strong>Zona de paseo:</strong>{" "}
+        {w.poligono?.length >= 3
+          ? `Área entre ${w.calles.map((c) => c.nombre || c).join(", ")}`
+          : w.radio_km
+            ? `${w.radio_km} km a la redonda`
+            : "Sin zona publicada"}
+      </p>
       {user?.rol === "dueno" && (
         <Link to={`/solicitar/${w.id}`} className="block text-center bg-greda text-white font-bold rounded-xl py-3">
           Solicitar paseo

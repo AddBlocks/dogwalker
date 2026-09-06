@@ -6,7 +6,8 @@ import { db } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { writeEncrypted } from "../services/encryption.js";
 import { submitVerification, verificationProviderName } from "../services/verification.js";
-import { geocodeLista, geocodeSantiago, haversineKm } from "../services/geocode.js";
+import { geocodeSantiago, haversineKm } from "../services/geocode.js";
+import { armarZonaCalles, parseZona } from "../services/zonaCalles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.join(__dirname, "..", "..", "uploads", "ids");
@@ -21,16 +22,8 @@ const upload = multer({
 
 export const walkersRouter = Router();
 
-function parseCalles(json) {
-  try {
-    const a = JSON.parse(json || "[]");
-    return Array.isArray(a) ? a : [];
-  } catch {
-    return [];
-  }
-}
-
 function walkerRow(row) {
+  const zona = parseZona(row.calles_json);
   return {
     id: row.user_id,
     paseador_id: row.paseador_id,
@@ -46,11 +39,13 @@ function walkerRow(row) {
     lat: row.lat,
     lng: row.lng,
     radio_km: row.radio_km,
-    calles: parseCalles(row.calles_json).map((c) => ({
-      nombre: c.nombre,
-      lat: c.lat,
-      lng: c.lng,
+    calles: zona.calles.map((c) => ({
+      nombre: typeof c === "string" ? c : c.nombre,
+      lat: c.lat ?? null,
+      lng: c.lng ?? null,
     })),
+    vertices: zona.vertices,
+    poligono: zona.poligono,
     telefono_visible: false,
   };
 }
@@ -75,7 +70,17 @@ walkersRouter.put("/mi-oferta", auth(true), requireRol("paseador"), async (req, 
   const nombres = Array.isArray(calles)
     ? [...new Set(calles.map((c) => String(c).trim()).filter(Boolean))].slice(0, 12)
     : [];
-  const callesGeo = nombres.length ? await geocodeLista(nombres) : [];
+  let zona = { calles: [], vertices: [], poligono: null, sinUbicacion: [] };
+  if (nombres.length) {
+    try {
+      zona = await armarZonaCalles(nombres, { near: geo });
+    } catch (err) {
+      console.error("[Patitas] no se pudieron cruzar las calles", err);
+      return res.status(503).json({
+        error: "No pudimos ubicar los cruces de esas calles ahora. Probá de nuevo en un minuto.",
+      });
+    }
+  }
   db.prepare(
     `UPDATE paseadores
      SET descripcion = ?, precio_clp = ?, disponibilidad = ?,
@@ -89,10 +94,18 @@ walkersRouter.put("/mi-oferta", auth(true), requireRol("paseador"), async (req, 
     geo.lat,
     geo.lng,
     radio,
-    JSON.stringify(callesGeo),
+    JSON.stringify({
+      calles: zona.calles,
+      vertices: zona.vertices,
+      poligono: zona.poligono,
+    }),
     p.id
   );
-  res.json({ ok: true, zona: { radio_km: radio, calles: callesGeo.length } });
+  res.json({
+    ok: true,
+    zona: { radio_km: radio, calles: zona.calles.length, vertices: zona.vertices.length },
+    calles_sin_ubicacion: zona.sinUbicacion,
+  });
 });
 
 walkersRouter.get("/", (req, res) => {

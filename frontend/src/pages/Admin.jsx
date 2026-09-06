@@ -72,16 +72,31 @@ function UsuariosAdmin() {
           <p className="font-bold">{u.nombre}</p>
           <p className="text-xs">
             {ROL_LABEL[u.rol] || u.rol} · {u.email} · {u.telefono || "sin celular"}
+            {!u.autorizado ? " · espera autorización" : " · autorizado"}
           </p>
           {u.rol === "paseador" && (
             <p className="text-xs text-tinta/50">Verificación: {u.estado_verificacion || "—"}</p>
           )}
-          <button
-            className="mt-2 text-xs font-bold border border-greda text-greda px-3 py-1 rounded-full"
-            onClick={() => onDelete(u)}
-          >
-            Eliminar usuario
-          </button>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {!u.autorizado && (
+              <button
+                className="text-xs font-bold bg-bosque text-crema px-3 py-1 rounded-full"
+                onClick={() =>
+                  api(`/api/admin/usuarios/${u.id}/autorizar`, { method: "POST" })
+                    .then(load)
+                    .catch((e) => setError(e.message))
+                }
+              >
+                Autorizar
+              </button>
+            )}
+            <button
+              className="text-xs font-bold border border-greda text-greda px-3 py-1 rounded-full"
+              onClick={() => onDelete(u)}
+            >
+              Eliminar usuario
+            </button>
+          </div>
         </article>
       ))}
     </div>

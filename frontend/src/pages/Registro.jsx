@@ -14,6 +14,7 @@ export default function Registro() {
     consentimiento: false,
   });
   const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -22,9 +23,11 @@ export default function Registro() {
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
+    setOk("");
     try {
-      const u = await registro(form);
-      nav(u.rol === "paseador" ? "/verificacion" : "/mapa");
+      const data = await registro(form);
+      setOk(data.mensaje || "El administrador debe autorizar tu cuenta.");
+      setTimeout(() => nav("/login?pendiente=1"), 2200);
     } catch (err) {
       setError(err.message);
     }
@@ -33,7 +36,7 @@ export default function Registro() {
   return (
     <div className="min-h-dvh bg-crema px-5 py-8">
       <h1 className="font-display text-3xl text-bosque">Crea tu cuenta</h1>
-      <p className="text-sm text-tinta/70 mt-1">Los dueños entran altiro. Los paseadores pasan por verificación.</p>
+      <p className="text-sm text-tinta/70 mt-1">El administrador revisa y autoriza cada cuenta nueva. Te avisamos cuando puedas entrar.</p>
       <form onSubmit={onSubmit} className="mt-6 space-y-3">
         <div className="grid grid-cols-2 gap-2">
           {[
@@ -65,6 +68,7 @@ export default function Registro() {
           </span>
         </label>
         {error && <p className="text-sm text-greda">{error}</p>}
+        {ok && <p className="text-sm text-bosque">{ok}</p>}
         <button className="w-full bg-greda text-white font-bold rounded-xl py-3">Registrarme</button>
         <p className="text-sm text-center">
           ¿Ya tenís cuenta? <Link className="font-bold text-bosque" to="/login">Entrar</Link>

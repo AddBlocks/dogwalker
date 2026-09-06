@@ -2,10 +2,18 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, lastId, publicUser } from "../db.js";
 import { auth, signToken } from "../middleware/auth.js";
+import { avisarAdminNuevoRegistro } from "../services/notificaciones.js";
 
 export const authRouter = Router();
 
-authRouter.post("/registro", (req, res) => {
+function cuentaPendiente() {
+  return {
+    error: "Tu cuenta está en revisión. El administrador debe autorizarla antes de que puedas entrar.",
+    pendiente: true,
+  };
+}
+
+authRouter.post("/registro", async (req, res) => {
   const { email, password, nombre, telefono, rol, consentimiento } = req.body || {};
   if (!consentimiento) {
     return res.status(400).json({
@@ -26,8 +34,8 @@ authRouter.post("/registro", (req, res) => {
 
   const r = db
     .prepare(
-      `INSERT INTO users (email, password_hash, nombre, telefono, rol, consentimiento_at)
-       VALUES (?, ?, ?, ?, ?, datetime('now'))`
+      `INSERT INTO users (email, password_hash, nombre, telefono, rol, consentimiento_at, autorizado, notify_email, notify_sms)
+       VALUES (?, ?, ?, ?, ?, datetime('now'), 0, 1, 0)`
     )
     .run(String(email).toLowerCase(), bcrypt.hashSync(password, 10), nombre.trim(), telefono || null, rol);
 
@@ -37,8 +45,16 @@ authRouter.post("/registro", (req, res) => {
   }
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(lastId(r));
-  const token = signToken(user);
-  res.status(201).json({ token, user: publicUser(user) });
+  try {
+    await avisarAdminNuevoRegistro(user);
+  } catch (err) {
+    console.error("[Patitas] no se pudo avisar al admin", err);
+  }
+  res.status(201).json({
+    pendiente: true,
+    email: user.email,
+    mensaje: "Recibimos tu registro. El administrador te autoriza y te avisamos para que puedas entrar.",
+  });
 });
 
 authRouter.post("/login", (req, res) => {
@@ -46,6 +62,9 @@ authRouter.post("/login", (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL").get(String(email || "").toLowerCase());
   if (!user || !user.password_hash || !bcrypt.compareSync(password || "", user.password_hash)) {
     return res.status(401).json({ error: "Correo o contraseña incorrectos." });
+  }
+  if (!user.autorizado) {
+    return res.status(403).json(cuentaPendiente());
   }
   res.json({ token: signToken(user), user: publicUser(user) });
 });
@@ -67,7 +86,9 @@ authRouter.get("/me", auth(true), (req, res) => {
         tiene_zona: Boolean(paseador.lat && paseador.lng && paseador.radio_km),
         calles: (() => {
           try {
-            return JSON.parse(paseador.calles_json || "[]").map((c) => c.nombre);
+            const raw = JSON.parse(paseador.calles_json || "[]");
+            const arr = Array.isArray(raw) ? raw : raw.calles || [];
+            return arr.map((c) => (typeof c === "string" ? c : c.nombre)).filter(Boolean);
           } catch {
             return [];
           }
@@ -115,13 +136,19 @@ authRouter.get("/google/callback", async (req, res) => {
     if (!user) {
       const r = db
         .prepare(
-          `INSERT INTO users (email, google_id, nombre, rol, consentimiento_at, avatar_url)
-           VALUES (?, ?, ?, 'dueno', datetime('now'), ?)`
+          `INSERT INTO users (email, google_id, nombre, rol, consentimiento_at, avatar_url, autorizado, notify_email, notify_sms)
+           VALUES (?, ?, ?, 'dueno', datetime('now'), ?, 0, 1, 0)`
         )
         .run(email, payload.sub, payload.name || email.split("@")[0], payload.picture || null);
       user = db.prepare("SELECT * FROM users WHERE id = ?").get(lastId(r));
-    } else if (!user.google_id) {
+      await avisarAdminNuevoRegistro(user);
+      return res.redirect(`${front}/login?pendiente=1`);
+    }
+    if (!user.google_id) {
       db.prepare("UPDATE users SET google_id = ? WHERE id = ?").run(payload.sub, user.id);
+    }
+    if (!user.autorizado) {
+      return res.redirect(`${front}/login?pendiente=1`);
     }
     const token = signToken(user);
     res.redirect(`${front}/login?google_token=${encodeURIComponent(token)}`);

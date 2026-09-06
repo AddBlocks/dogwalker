@@ -1,4 +1,4 @@
-# Esquema de base de datos — PaseoPatitas
+# Esquema de base de datos — Patitas
 
 El MVP corre en **SQLite**. Este documento es el contrato para migrar a **Postgres + PostGIS** (Supabase) cuando crezca el tráfico.
 

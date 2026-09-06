@@ -26,7 +26,7 @@ app.use(cors({ origin, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/salud", (_req, res) => {
-  res.json({ ok: true, nombre: "PaseoPatitas", version: "1.0.0" });
+  res.json({ ok: true, nombre: "Patitas", version: "1.0.0" });
 });
 
 app.use("/api/auth", authRouter);
@@ -55,5 +55,5 @@ app.use((err, _req, res, _next) => {
 
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => {
-  console.log(`PaseoPatitas API en http://localhost:${port}`);
+  console.log(`Patitas API en http://localhost:${port}`);
 });

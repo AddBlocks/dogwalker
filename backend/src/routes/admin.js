@@ -5,6 +5,7 @@ import { auth, requireRol } from "../middleware/auth.js";
 import { scheduleIdPurge } from "../services/retention.js";
 import { decryptBuffer } from "../services/encryption.js";
 import { eliminarCuenta } from "../services/cuentas.js";
+// import { avisarCuentaAutorizada } from "../services/notificaciones.js";
 
 export const adminRouter = Router();
 adminRouter.use(auth(true), requireRol("admin"));
@@ -190,15 +191,26 @@ adminRouter.put("/anuncios/:id", (req, res) => {
 adminRouter.get("/usuarios", (_req, res) => {
   const rows = db
     .prepare(
-      `SELECT u.id, u.email, u.nombre, u.telefono, u.rol, u.created_at, u.calificacion_promedio,
+      `SELECT u.id, u.email, u.nombre, u.telefono, u.rol, u.created_at, u.calificacion_promedio, u.autorizado,
               p.id AS paseador_id, p.estado_verificacion
        FROM users u
        LEFT JOIN paseadores p ON p.user_id = u.id
        WHERE u.deleted_at IS NULL AND u.rol IN ('dueno','paseador')
-       ORDER BY u.created_at DESC`
+       ORDER BY u.autorizado ASC, u.created_at DESC`
     )
     .all();
   res.json(rows);
+});
+
+adminRouter.post("/usuarios/:id/autorizar", async (req, res) => {
+  const u = db
+    .prepare("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL AND rol IN ('dueno','paseador')")
+    .get(Number(req.params.id));
+  if (!u) return res.status(404).json({ error: "Usuario no encontrado." });
+  db.prepare("UPDATE users SET autorizado = 1 WHERE id = ?").run(u.id);
+  // const next = db.prepare("SELECT * FROM users WHERE id = ?").get(u.id);
+  // await avisarCuentaAutorizada(next);
+  res.json({ ok: true });
 });
 
 adminRouter.delete("/usuarios/:id", (req, res) => {

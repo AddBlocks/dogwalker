@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["logo.svg", "favicon.svg"],
       manifest: {
-        name: "PaseoPatitas",
-        short_name: "PaseoPatitas",
+        name: "Patitas",
+        short_name: "Patitas",
         description: "Paseos de perros de confianza en Santiago",
         lang: "es-CL",
         start_url: "/",

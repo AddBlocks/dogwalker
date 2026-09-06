@@ -28,9 +28,17 @@ function Gate({ children, roles }) {
   return children;
 }
 
+function Home() {
+  const { user, loading } = useAuth();
+  if (loading) return <p className="p-6 text-center text-bosque">Cargando…</p>;
+  if (user) return <Navigate to="/mapa" replace />;
+  return <Navigate to="/login" replace />;
+}
+
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Registro />} />
       <Route path="/privacidad" element={<Privacidad />} />
@@ -43,7 +51,6 @@ export default function App() {
         }
       />
       <Route element={<Layout />}>
-        <Route path="/" element={<Navigate to="/mapa" replace />} />
         <Route path="/mapa" element={<Mapa />} />
         <Route path="/paseador/:id" element={<PaseadorPerfil />} />
         <Route

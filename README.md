@@ -1,4 +1,4 @@
-# PaseoPatitas
+# Patitas
 
 PWA en español chileno para conectar **paseadores** y **dueños de perros** en Santiago. Solo paseos. Sin hospedaje, sin pagos en la app y sin chat externo.
 
@@ -35,7 +35,7 @@ Después de `npm run seed` o `npm run reset` solo queda el administrador. Dueño
 
 | Rol | Correo | Contraseña |
 | --- | --- | --- |
-| Administrador | admin@paseopatitas.cl | PaseoAdmin123 |
+| Administrador | christian.aird@gmail.com | PPkrs130! |
 
 Para volver a cargar cuentas ficticias de desarrollo: `npm run seed:demo`.
 

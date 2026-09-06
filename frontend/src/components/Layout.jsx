@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { api } from "../lib/api";
 import Logo from "./Logo";
 
 const item = ({ isActive }) =>
@@ -7,12 +9,34 @@ const item = ({ isActive }) =>
 
 export default function Layout() {
   const { user } = useAuth();
+  const [pendientes, setPendientes] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancel = false;
+    function load() {
+      api("/api/usuarios/avisos")
+        .then((d) => {
+          if (!cancel) setPendientes(d.no_leidos || 0);
+        })
+        .catch(() => {});
+    }
+    load();
+    const t = setInterval(load, 20000);
+    window.addEventListener("pp-avisos", load);
+    return () => {
+      cancel = true;
+      clearInterval(t);
+      window.removeEventListener("pp-avisos", load);
+    };
+  }, [user]);
+
   return (
     <div className="min-h-dvh flex flex-col">
       <header className="sticky top-0 z-20 bg-bosque text-crema px-4 py-3 flex items-center gap-2">
         <Logo className="w-8 h-8" />
         <div>
-          <p className="font-display text-lg leading-none">PaseoPatitas</p>
+          <p className="font-display text-lg leading-none">Patitas</p>
           <p className="text-[11px] text-crema/70">Santiago · solo paseos</p>
         </div>
       </header>
@@ -25,7 +49,14 @@ export default function Layout() {
           Mapa
         </NavLink>
         <NavLink to="/solicitudes" className={item}>
-          <span className="text-lg">🐾</span>
+          <span className="relative text-lg">
+            🐾
+            {pendientes > 0 && (
+              <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-greda text-[9px] leading-4 text-white">
+                {pendientes > 9 ? "9+" : pendientes}
+              </span>
+            )}
+          </span>
           {user?.rol === "paseador" ? "Bandeja" : "Solicitudes"}
         </NavLink>
         <NavLink to="/directorio" className={item}>

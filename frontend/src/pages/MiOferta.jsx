@@ -43,7 +43,7 @@ export default function MiOferta() {
     setOk("");
     setSaving(true);
     try {
-      await api("/api/paseadores/mi-oferta", {
+      const data = await api("/api/paseadores/mi-oferta", {
         method: "PUT",
         body: JSON.stringify({
           ...form,
@@ -52,7 +52,15 @@ export default function MiOferta() {
         }),
       });
       await refresh();
-      setOk("Zona guardada. Tu dirección no se muestra a nadie; en el mapa solo se ve el radio de paseo.");
+      if (data.calles_sin_ubicacion?.length) {
+        setOk(
+          `Zona guardada, pero no ubicamos: ${data.calles_sin_ubicacion.join(", ")}. Probá con el nombre completo y la comuna.`
+        );
+      } else if ((data.zona?.vertices || 0) >= 3) {
+        setOk("Zona guardada. En el mapa se pinta el rectángulo que forman los cruces de tus calles.");
+      } else {
+        setOk("Zona guardada. Tu dirección no se muestra a nadie; en el mapa se ve el radio de paseo.");
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -97,8 +105,10 @@ export default function MiOferta() {
         />
       </label>
 
-      <p className="text-sm font-bold">Calles de tu zona (opcional)</p>
-      <p className="text-xs text-tinta/60">Si las agregas, aparecen en el mapa como referencia del área, no como tu casa.</p>
+      <p className="text-sm font-bold">Calles que encierran tu zona (opcional)</p>
+      <p className="text-xs text-tinta/60">
+        Indicá las calles que se cruzan. Esos cruces son las esquinas de tu zona en el mapa. No se muestra tu casa.
+      </p>
       <div className="flex gap-2">
         <input
           className="flex-1 rounded-xl border border-arena px-3 py-2"

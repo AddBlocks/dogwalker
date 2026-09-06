@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Circle, Marker, Popup, CircleMarker, Tooltip, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Circle, Marker, Popup, CircleMarker, Polygon, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Link } from "react-router-dom";
 import { api, clp } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { centroide, zonaVisible } from "../lib/zona";
 import AdSlot from "../components/AdSlot";
 import WalkerCard from "../components/WalkerCard";
 import Stars from "../components/Stars";
@@ -19,11 +20,21 @@ function pinIcon(destacado) {
   });
 }
 
-function FlyTo({ center }) {
+function FlyTo({ center, active }) {
   const map = useMap();
   useEffect(() => {
-    if (center) map.flyTo(center, 13, { duration: 0.6 });
-  }, [center, map]);
+    if (active && center) map.flyTo(center, 13, { duration: 0.6 });
+  }, [center, map, active]);
+  return null;
+}
+
+function AjustarZonas({ walkers, comuna }) {
+  const map = useMap();
+  useEffect(() => {
+    if (comuna) return;
+    const pts = walkers.flatMap((w) => zonaVisible(w) || []);
+    if (pts.length >= 3) map.fitBounds(pts, { padding: [36, 36], maxZoom: 15 });
+  }, [walkers, comuna, map]);
   return null;
 }
 
@@ -74,46 +85,61 @@ export default function Mapa() {
     <div className="flex flex-col">
       <MapContainer center={center} zoom={12} className="h-[calc(100dvh-19.5rem)] min-h-[42vh] w-full" zoomControl={false}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {walkers.map((w) =>
-          w.lat && w.lng && w.radio_km ? (
-            <Circle
-              key={`zona-${w.id}`}
-              center={[w.lat, w.lng]}
-              radius={Number(w.radio_km) * 1000}
-              pathOptions={{
-                color: w.destacado ? "#C45C26" : "#8B4513",
-                weight: 2,
-                fillColor: w.destacado ? "#C45C26" : "#8B4513",
-                fillOpacity: 0.1,
-              }}
-            >
-              <Popup>
-                <p className="font-bold m-0">{w.nombre}</p>
-                <p className="m-0 text-sm">
-                  {clp(w.precio_clp)} · zona {w.radio_km} km
-                </p>
-                <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
-              </Popup>
-            </Circle>
-          ) : null
-        )}
-        {walkers.flatMap((w) =>
-          (w.calles || [])
-            .filter((c) => c.lat && c.lng)
-            .map((c) => (
-              <CircleMarker
-                key={`calle-${w.id}-${c.nombre}`}
-                center={[c.lat, c.lng]}
-                radius={6}
-                pathOptions={{ color: "#5C2C0E", fillColor: "#E9B44C", fillOpacity: 1, weight: 1 }}
+        {walkers.map((w) => {
+          const poligono = zonaVisible(w);
+          const color = w.destacado ? "#C45C26" : "#8B4513";
+          if (poligono) {
+            return (
+              <Polygon
+                key={`zona-${w.id}`}
+                positions={poligono}
+                pathOptions={{ color, weight: 2, fillColor: color, fillOpacity: 0.22 }}
               >
-                <Tooltip>{c.nombre}</Tooltip>
-              </CircleMarker>
-            ))
+                <Popup>
+                  <p className="font-bold m-0">{w.nombre}</p>
+                  <p className="m-0 text-sm">{clp(w.precio_clp)} · zona de {w.nombre}</p>
+                  <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
+                </Popup>
+              </Polygon>
+            );
+          }
+          if (w.lat && w.lng && w.radio_km) {
+            return (
+              <Circle
+                key={`zona-${w.id}`}
+                center={[w.lat, w.lng]}
+                radius={Number(w.radio_km) * 1000}
+                pathOptions={{ color, weight: 2, fillColor: color, fillOpacity: 0.1 }}
+              >
+                <Popup>
+                  <p className="font-bold m-0">{w.nombre}</p>
+                  <p className="m-0 text-sm">
+                    {clp(w.precio_clp)} · zona {w.radio_km} km
+                  </p>
+                  <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
+                </Popup>
+              </Circle>
+            );
+          }
+          return null;
+        })}
+        {walkers.flatMap((w) =>
+          (w.vertices || []).map((v, i) => (
+            <CircleMarker
+              key={`cruz-${w.id}-${i}`}
+              center={[v.lat, v.lng]}
+              radius={6}
+              pathOptions={{ color: "#5C2C0E", fillColor: "#E9B44C", fillOpacity: 1, weight: 1 }}
+            >
+              <Tooltip>{[v.a, v.b].filter(Boolean).join(" × ")}</Tooltip>
+            </CircleMarker>
+          ))
         )}
-        {walkers.map((w) =>
-          w.lat && w.lng ? (
-            <Marker key={w.id} position={[w.lat, w.lng]} icon={pinIcon(w.destacado)}>
+        {walkers.map((w) => {
+          const poligono = zonaVisible(w);
+          const pin = (poligono && centroide(poligono)) || (w.lat && w.lng ? [w.lat, w.lng] : null);
+          return pin ? (
+            <Marker key={w.id} position={pin} icon={pinIcon(w.destacado)}>
               <Popup>
                 <p className="font-bold m-0">{w.nombre}</p>
                 {w.destacado && <p className="text-xs text-amber-700 m-0">Destacado</p>}
@@ -127,9 +153,10 @@ export default function Mapa() {
                 <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
               </Popup>
             </Marker>
-          ) : null
-        )}
-        <FlyTo center={center} />
+          ) : null;
+        })}
+        <FlyTo center={center} active={Boolean(filtros.comuna)} />
+        <AjustarZonas walkers={walkers} comuna={filtros.comuna} />
       </MapContainer>
 
       <div className="px-3 py-2 space-y-2">

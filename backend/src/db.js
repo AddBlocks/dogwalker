@@ -36,7 +36,10 @@ export function migrate() {
       calificacion_promedio REAL DEFAULT 0,
       calificacion_count INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
-      deleted_at TEXT
+      deleted_at TEXT,
+      autorizado INTEGER DEFAULT 1,
+      notify_email INTEGER DEFAULT 1,
+      notify_sms INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS paseadores (
@@ -174,6 +177,9 @@ export function migrate() {
   `);
   migratePaseoTracking();
   migrateZonaPaseo();
+  migrateMarcaPatitas();
+  migrateNotificaciones();
+  migrateAvisos();
 }
 
 function tableSql(name) {
@@ -236,6 +242,49 @@ function migrateZonaPaseo() {
   if (!hasColumn("paseadores", "calles_json")) db.exec("ALTER TABLE paseadores ADD COLUMN calles_json TEXT");
 }
 
+function migrateMarcaPatitas() {
+  db.prepare(
+    `UPDATE users SET email = replace(email, '@paseopatitas.cl', '@patitas.cl')
+     WHERE email LIKE '%@paseopatitas.cl'`
+  ).run();
+  db.prepare(
+    `UPDATE users SET nombre = replace(nombre, 'PaseoPatitas', 'Patitas')
+     WHERE nombre LIKE '%PaseoPatitas%'`
+  ).run();
+  try {
+    db.prepare(
+      `UPDATE anuncios SET texto = replace(texto, 'PaseoPatitas', 'Patitas')
+       WHERE texto LIKE '%PaseoPatitas%'`
+    ).run();
+  } catch {
+    /* tabla puede no existir en migraciones parciales */
+  }
+}
+
+function migrateNotificaciones() {
+  if (!hasColumn("users", "autorizado")) {
+    db.exec("ALTER TABLE users ADD COLUMN autorizado INTEGER DEFAULT 1");
+    db.exec("UPDATE users SET autorizado = 1 WHERE deleted_at IS NULL");
+  }
+  if (!hasColumn("users", "notify_email")) db.exec("ALTER TABLE users ADD COLUMN notify_email INTEGER DEFAULT 1");
+  if (!hasColumn("users", "notify_sms")) db.exec("ALTER TABLE users ADD COLUMN notify_sms INTEGER DEFAULT 0");
+}
+
+function migrateAvisos() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS avisos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tipo TEXT NOT NULL,
+      texto TEXT NOT NULL,
+      enlace TEXT,
+      leido INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS avisos_user_idx ON avisos(user_id, leido);
+  `);
+}
+
 export function lastId(result) {
   return Number(result.lastInsertRowid);
 }
@@ -253,5 +302,8 @@ export function publicUser(row) {
     calificacion_count: row.calificacion_count,
     consentimiento_at: row.consentimiento_at,
     created_at: row.created_at,
+    autorizado: row.autorizado !== 0,
+    notify_email: row.notify_email !== 0,
+    notify_sms: Boolean(row.notify_sms),
   };
 }

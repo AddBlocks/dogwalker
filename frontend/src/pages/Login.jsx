@@ -10,7 +10,13 @@ export default function Login() {
   const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(params.get("error") === "google" ? "No pudimos entrar con Google." : "");
+  const [error, setError] = useState(
+    params.get("error") === "google"
+      ? "No pudimos entrar con Google."
+      : params.get("pendiente")
+        ? "Tu cuenta está en revisión. El administrador debe autorizarla."
+        : ""
+  );
   const [googleUrl, setGoogleUrl] = useState(null);
 
   useEffect(() => {
@@ -66,10 +72,15 @@ export default function Login() {
         <p className="text-sm text-center">
           ¿No tenís cuenta? <Link className="text-greda font-bold" to="/registro">Regístrate</Link>
         </p>
+        <button
+          type="button"
+          className="w-full text-sm font-bold text-bosque underline py-1"
+          onClick={() => nav("/mapa")}
+        >
+          Seguir sin entrar y ver el mapa
+        </button>
         <p className="text-xs text-center text-tinta/50">
-          <p className="text-xs text-center text-tinta/50">
-            ¿Eres paseador? Regístrate y espera la aprobación para aparecer en el mapa.
-          </p>
+          ¿Eres paseador? Regístrate y espera la aprobación para aparecer en el mapa.
         </p>
       </form>
     </div>
