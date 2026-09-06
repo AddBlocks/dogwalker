@@ -17,9 +17,26 @@ body {
   background: #dce8dc;
 }
 
+/* Tailwind pone display:block / max-width en svg e img y en Android
+   el polígono de Leaflet (SVG) queda invisible o recortado. */
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.leaflet-container .leaflet-overlay-pane svg,
+.leaflet-container .leaflet-zoom-animated {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.leaflet-overlay-pane svg {
+  display: inline !important;
+}
+
 .pin-paseador {
-  width: 40px;
-  height: 40px;
+  width: 27px;
+  height: 27px;
   border-radius: 999px;
   overflow: hidden;
   border: 2px solid #5c2c0e;
@@ -29,8 +46,8 @@ body {
 
 .pin-paseador svg {
   display: block;
-  width: 40px;
-  height: 40px;
+  width: 27px;
+  height: 27px;
 }
 
 .pin-paseador.destacado {

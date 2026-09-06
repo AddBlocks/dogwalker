@@ -19,7 +19,9 @@ export function eliminarCuenta(userId, { actorId } = {}) {
     db.prepare(
       `UPDATE paseadores SET cedula_frente=NULL, cedula_reverso=NULL, selfie=NULL,
         descripcion=NULL, disponibilidad=NULL, direccion_privada=NULL, lat=NULL, lng=NULL,
-        radio_km=NULL, calles_json=NULL, estado_verificacion='rechazado' WHERE id=?`
+        radio_km=NULL, calles_json=NULL, banco=NULL, tipo_cuenta=NULL, numero_cuenta=NULL,
+        titular=NULL, rut_titular=NULL, email_transferencia=NULL, pago_momento=NULL,
+        monto_anticipado_clp=NULL, estado_verificacion='rechazado' WHERE id=?`
     ).run(p.id);
   }
 

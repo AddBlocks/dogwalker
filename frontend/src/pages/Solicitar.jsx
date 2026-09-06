@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, clp } from "../lib/api";
 import { FRECUENCIAS } from "../lib/format";
+import PagoPaseador from "../components/PagoPaseador";
 
 export default function Solicitar() {
   const { id } = useParams();
@@ -48,6 +49,7 @@ export default function Solicitar() {
       <h1 className="font-display text-2xl text-bosque">Solicitar a {w.nombre}</h1>
       <p className="text-sm">Precio referencial: {clp(w.precio_clp)}</p>
       {w.radio_km && <p className="text-sm">Pasea hasta {w.radio_km} km desde su zona.</p>}
+      <PagoPaseador walker={w} />
       <select className="w-full rounded-xl border border-arena px-3 py-2" value={form.comuna_id} onChange={(e) => setForm({ ...form, comuna_id: Number(e.target.value) })}>
         {comunas.map((c) => (
           <option key={c.id} value={c.id}>{c.nombre}</option>

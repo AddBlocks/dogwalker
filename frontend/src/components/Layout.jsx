@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import Logo from "./Logo";
@@ -8,7 +8,7 @@ const item = ({ isActive }) =>
   `flex flex-col items-center text-[11px] font-bold ${isActive ? "text-oro" : "text-white/70"}`;
 
 export default function Layout() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [pendientes, setPendientes] = useState(0);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function Layout() {
       <main className="flex-1 pb-20">
         <Outlet />
       </main>
-      <nav className="fixed bottom-0 inset-x-0 bg-bosque text-white border-t border-white/10 px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] grid grid-cols-4">
+      <nav className="fixed bottom-0 inset-x-0 z-[500] bg-bosque text-white border-t border-white/10 px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] grid grid-cols-4">
         <NavLink to="/mapa" className={item}>
           <span className="text-lg">🗺️</span>
           Mapa
@@ -63,11 +63,60 @@ export default function Layout() {
           <span className="text-lg">🏪</span>
           Directorio
         </NavLink>
-        <NavLink to="/perfil" className={item}>
-          <span className="text-lg">👤</span>
-          Perfil
-        </NavLink>
+        <MenuPerfil logout={logout} />
       </nav>
+    </div>
+  );
+}
+
+function MenuPerfil({ logout }) {
+  const nav = useNavigate();
+  const [abierto, setAbierto] = useState(false);
+
+  function cerrarSesion() {
+    setAbierto(false);
+    logout();
+    nav("/login");
+  }
+
+  return (
+    <div
+      className="relative flex justify-center"
+      onMouseEnter={() => setAbierto(true)}
+      onMouseLeave={() => setAbierto(false)}
+    >
+      <NavLink
+        to="/perfil"
+        className={item}
+        onFocus={() => setAbierto(true)}
+        onClick={(e) => {
+          if (window.matchMedia("(hover: none)").matches && !abierto) {
+            e.preventDefault();
+            setAbierto(true);
+          }
+        }}
+      >
+        <span className="text-lg">👤</span>
+        Perfil
+      </NavLink>
+      {abierto && (
+        <div className="absolute bottom-[calc(100%+0.35rem)] right-0 min-w-[10.5rem] rounded-2xl bg-white text-tinta shadow-ficha border border-arena overflow-hidden">
+          <NavLink
+            to="/perfil"
+            className="block px-4 py-2.5 text-sm font-bold hover:bg-arena"
+            onClick={() => setAbierto(false)}
+          >
+            Ver perfil
+          </NavLink>
+          <button
+            type="button"
+            className="w-full text-left px-4 py-2.5 text-sm font-bold text-greda hover:bg-arena"
+            onClick={cerrarSesion}
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -17,6 +17,41 @@ export const CATEGORIAS = [
 
 export const FRECUENCIAS = ["Una vez", "2 a 3 veces por semana", "Lunes a viernes", "Todos los días"];
 
+export const BANCOS_CL = [
+  "BancoEstado",
+  "Banco de Chile",
+  "Santander",
+  "BCI",
+  "Itaú",
+  "Scotiabank",
+  "Banco Falabella",
+  "Banco Ripley",
+  "Banco BICE",
+  "Banco Security",
+  "Coopeuch",
+  "Tenpo",
+  "Mercado Pago",
+  "Otro",
+];
+
+export const TIPOS_CUENTA = [
+  { id: "corriente", label: "Cuenta corriente" },
+  { id: "vista", label: "Cuenta vista" },
+  { id: "rut", label: "Cuenta RUT" },
+  { id: "ahorro", label: "Cuenta de ahorro" },
+];
+
+export function pagoMomentoLabel(momento, monto) {
+  if (momento === "antes") return "El pago se hace antes de pasear.";
+  if (momento === "despues") return "El pago se hace después de pasear.";
+  if (momento === "mixto") {
+    return monto
+      ? `Se paga una parte antes (${new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(monto)}) y el resto después.`
+      : "Se paga una parte antes y otra después de pasear.";
+  }
+  return null;
+}
+
 export function estadoLabel(estado) {
   return (
     {

@@ -32,6 +32,8 @@ adminRouter.get("/paseadores", (_req, res) => {
       lat: undefined,
       lng: undefined,
       calles_json: undefined,
+      numero_cuenta: undefined,
+      rut_titular: undefined,
       radio_km: p.radio_km,
       cedula_frente: undefined,
       cedula_reverso: undefined,

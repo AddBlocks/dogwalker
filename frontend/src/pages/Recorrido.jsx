@@ -14,8 +14,8 @@ function pinPaseador(destacado = false) {
   return L.divIcon({
     className: "",
     html: pinHuellasHtml(destacado),
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
+    iconSize: [27, 27],
+    iconAnchor: [14, 14],
   });
 }
 
@@ -23,8 +23,8 @@ function pinInicio() {
   return L.divIcon({
     className: "",
     html: `<div class="pin-paseador" style="display:flex;align-items:center;justify-content:center;font-weight:800;color:#6B3410;background:#F6F1E7">A</div>`,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
+    iconSize: [27, 27],
+    iconAnchor: [14, 14],
   });
 }
 

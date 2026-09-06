@@ -63,6 +63,14 @@ export function migrate() {
       lng REAL,
       radio_km REAL,
       calles_json TEXT,
+      banco TEXT,
+      tipo_cuenta TEXT,
+      numero_cuenta TEXT,
+      titular TEXT,
+      rut_titular TEXT,
+      email_transferencia TEXT,
+      pago_momento TEXT,
+      monto_anticipado_clp INTEGER,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -177,6 +185,7 @@ export function migrate() {
   `);
   migratePaseoTracking();
   migrateZonaPaseo();
+  migratePagoPaseador();
   migrateMarcaPatitas();
   migrateNotificaciones();
   migrateAvisos();
@@ -240,6 +249,17 @@ function migrateZonaPaseo() {
   if (!hasColumn("paseadores", "lng")) db.exec("ALTER TABLE paseadores ADD COLUMN lng REAL");
   if (!hasColumn("paseadores", "radio_km")) db.exec("ALTER TABLE paseadores ADD COLUMN radio_km REAL");
   if (!hasColumn("paseadores", "calles_json")) db.exec("ALTER TABLE paseadores ADD COLUMN calles_json TEXT");
+}
+
+function migratePagoPaseador() {
+  if (!hasColumn("paseadores", "banco")) db.exec("ALTER TABLE paseadores ADD COLUMN banco TEXT");
+  if (!hasColumn("paseadores", "tipo_cuenta")) db.exec("ALTER TABLE paseadores ADD COLUMN tipo_cuenta TEXT");
+  if (!hasColumn("paseadores", "numero_cuenta")) db.exec("ALTER TABLE paseadores ADD COLUMN numero_cuenta TEXT");
+  if (!hasColumn("paseadores", "titular")) db.exec("ALTER TABLE paseadores ADD COLUMN titular TEXT");
+  if (!hasColumn("paseadores", "rut_titular")) db.exec("ALTER TABLE paseadores ADD COLUMN rut_titular TEXT");
+  if (!hasColumn("paseadores", "email_transferencia")) db.exec("ALTER TABLE paseadores ADD COLUMN email_transferencia TEXT");
+  if (!hasColumn("paseadores", "pago_momento")) db.exec("ALTER TABLE paseadores ADD COLUMN pago_momento TEXT");
+  if (!hasColumn("paseadores", "monto_anticipado_clp")) db.exec("ALTER TABLE paseadores ADD COLUMN monto_anticipado_clp INTEGER");
 }
 
 function migrateMarcaPatitas() {

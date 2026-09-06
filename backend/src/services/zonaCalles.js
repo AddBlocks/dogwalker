@@ -168,6 +168,20 @@ export function parseZona(json) {
   }
 }
 
+export function puntoEnPoligono(lat, lng, ring) {
+  if (!ring?.length) return false;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = Number(ring[i][0]);
+    const xi = Number(ring[i][1]);
+    const yj = Number(ring[j][0]);
+    const xj = Number(ring[j][1]);
+    const cruza = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi || 1e-12) + xi;
+    if (cruza) inside = !inside;
+  }
+  return inside;
+}
+
 export function nombresDesdeZona(json) {
   return parseZona(json)
     .calles.map((c) => (typeof c === "string" ? c : c.nombre))

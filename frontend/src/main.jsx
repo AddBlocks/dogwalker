@@ -5,7 +5,7 @@ import App from "./App";
 import { AuthProvider } from "./lib/auth";
 import "./index.css";
 
-const LOGO_GEN = "huellas-v1";
+const LOGO_GEN = "zona-poligono-v2";
 if (typeof window !== "undefined" && localStorage.getItem("pp_logo_gen") !== LOGO_GEN) {
   localStorage.setItem("pp_logo_gen", LOGO_GEN);
   if ("serviceWorker" in navigator) {

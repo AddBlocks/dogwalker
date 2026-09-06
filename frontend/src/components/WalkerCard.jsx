@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 import { clp } from "../lib/api";
+import { pagoMomentoLabel } from "../lib/format";
 import Stars from "./Stars";
 
 export default function WalkerCard({ walker }) {
+  const pago = pagoMomentoLabel(walker.pago_momento, walker.monto_anticipado_clp);
   return (
     <Link
       to={`/paseador/${walker.id}`}
@@ -29,6 +31,7 @@ export default function WalkerCard({ walker }) {
           {walker.calles?.length ? ` · ${walker.calles.map((c) => c.nombre || c).join(" · ")}` : ""}
         </p>
       )}
+      {pago && <p className="text-xs text-tinta/60 mt-1">{pago}</p>}
     </Link>
   );
 }

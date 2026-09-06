@@ -84,6 +84,14 @@ authRouter.get("/me", auth(true), (req, res) => {
         direccion_privada: paseador.direccion_privada,
         radio_km: paseador.radio_km,
         tiene_zona: Boolean(paseador.lat && paseador.lng && paseador.radio_km),
+        banco: paseador.banco,
+        tipo_cuenta: paseador.tipo_cuenta,
+        numero_cuenta: paseador.numero_cuenta,
+        titular: paseador.titular,
+        rut_titular: paseador.rut_titular,
+        email_transferencia: paseador.email_transferencia,
+        pago_momento: paseador.pago_momento,
+        monto_anticipado_clp: paseador.monto_anticipado_clp,
         calles: (() => {
           try {
             const raw = JSON.parse(paseador.calles_json || "[]");

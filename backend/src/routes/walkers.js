@@ -7,7 +7,7 @@ import { auth, requireRol } from "../middleware/auth.js";
 import { writeEncrypted } from "../services/encryption.js";
 import { submitVerification, verificationProviderName } from "../services/verification.js";
 import { geocodeSantiago, haversineKm } from "../services/geocode.js";
-import { armarZonaCalles, parseZona } from "../services/zonaCalles.js";
+import { armarZonaCalles, parseZona, puntoEnPoligono } from "../services/zonaCalles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.join(__dirname, "..", "..", "uploads", "ids");
@@ -46,6 +46,14 @@ function walkerRow(row) {
     })),
     vertices: zona.vertices,
     poligono: zona.poligono,
+    banco: row.banco || null,
+    tipo_cuenta: row.tipo_cuenta || null,
+    numero_cuenta: row.numero_cuenta || null,
+    titular: row.titular || null,
+    rut_titular: row.rut_titular || null,
+    email_transferencia: row.email_transferencia || null,
+    pago_momento: row.pago_momento || null,
+    monto_anticipado_clp: row.monto_anticipado_clp || null,
     telefono_visible: false,
   };
 }
@@ -108,6 +116,51 @@ walkersRouter.put("/mi-oferta", auth(true), requireRol("paseador"), async (req, 
   });
 });
 
+walkersRouter.put("/mi-pago", auth(true), requireRol("paseador"), (req, res) => {
+  const p = db.prepare("SELECT id, precio_clp FROM paseadores WHERE user_id = ?").get(req.user.id);
+  if (!p) return res.status(404).json({ error: "Perfil de paseador no encontrado." });
+  const {
+    banco,
+    tipo_cuenta,
+    numero_cuenta,
+    titular,
+    rut_titular,
+    email_transferencia,
+    pago_momento,
+    monto_anticipado_clp,
+  } = req.body || {};
+  const momento = ["antes", "despues", "mixto"].includes(pago_momento) ? pago_momento : null;
+  let anticipo = momento === "mixto" ? Number(monto_anticipado_clp) : null;
+  if (momento === "mixto") {
+    if (!Number.isFinite(anticipo) || anticipo < 1000) {
+      return res.status(400).json({ error: "Ingresa el monto anticipado (mínimo $1.000)." });
+    }
+    if (p.precio_clp && anticipo >= Number(p.precio_clp)) {
+      return res.status(400).json({ error: "El anticipo tiene que ser menor que el precio del paseo." });
+    }
+  } else {
+    anticipo = null;
+  }
+  const tipo = ["corriente", "vista", "rut", "ahorro"].includes(tipo_cuenta) ? tipo_cuenta : null;
+  db.prepare(
+    `UPDATE paseadores
+     SET banco = ?, tipo_cuenta = ?, numero_cuenta = ?, titular = ?, rut_titular = ?,
+         email_transferencia = ?, pago_momento = ?, monto_anticipado_clp = ?
+     WHERE id = ?`
+  ).run(
+    String(banco || "").trim() || null,
+    tipo,
+    String(numero_cuenta || "").trim() || null,
+    String(titular || "").trim() || null,
+    String(rut_titular || "").trim() || null,
+    String(email_transferencia || "").trim() || null,
+    momento,
+    anticipo,
+    p.id
+  );
+  res.json({ ok: true });
+});
+
 walkersRouter.get("/", (req, res) => {
   const comunaId = req.query.comuna ? Number(req.query.comuna) : null;
   const precioMax = req.query.precio_max ? Number(req.query.precio_max) : null;
@@ -116,7 +169,9 @@ walkersRouter.get("/", (req, res) => {
   let sql = `
     SELECT u.id AS user_id, u.nombre, u.avatar_url, u.calificacion_promedio, u.calificacion_count,
            p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados,
-           p.lat, p.lng, p.radio_km, p.calles_json
+           p.lat, p.lng, p.radio_km, p.calles_json,
+           p.banco, p.tipo_cuenta, p.numero_cuenta, p.titular, p.rut_titular,
+           p.email_transferencia, p.pago_momento, p.monto_anticipado_clp
     FROM paseadores p
     JOIN users u ON u.id = p.user_id
     WHERE p.estado_verificacion = 'aprobado' AND u.deleted_at IS NULL
@@ -137,7 +192,11 @@ walkersRouter.get("/", (req, res) => {
   if (comunaId) {
     const comuna = db.prepare("SELECT lat, lng FROM comunas WHERE id = ?").get(comunaId);
     if (comuna) {
-      rows = rows.filter((w) => haversineKm({ lat: w.lat, lng: w.lng }, comuna) <= Number(w.radio_km));
+      rows = rows.filter((w) => {
+        if (w.poligono?.length >= 3 && puntoEnPoligono(comuna.lat, comuna.lng, w.poligono)) return true;
+        if (w.vertices?.some((v) => haversineKm(v, comuna) <= 2)) return true;
+        return w.lat != null && w.lng != null && Number(w.radio_km) > 0 && haversineKm({ lat: w.lat, lng: w.lng }, comuna) <= Number(w.radio_km);
+      });
     }
   }
   res.json(rows);
@@ -148,7 +207,9 @@ walkersRouter.get("/:id", (req, res) => {
     .prepare(
       `SELECT u.id AS user_id, u.nombre, u.avatar_url, u.calificacion_promedio, u.calificacion_count,
               p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados,
-              p.estado_verificacion, p.lat, p.lng, p.radio_km, p.calles_json
+              p.estado_verificacion, p.lat, p.lng, p.radio_km, p.calles_json,
+              p.banco, p.tipo_cuenta, p.numero_cuenta, p.titular, p.rut_titular,
+              p.email_transferencia, p.pago_momento, p.monto_anticipado_clp
        FROM paseadores p JOIN users u ON u.id = p.user_id
        WHERE u.id = ? AND u.deleted_at IS NULL`
     )

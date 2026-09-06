@@ -15,26 +15,34 @@ function pinIcon(destacado) {
   return L.divIcon({
     className: "",
     html: pinHuellasHtml(destacado),
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
+    iconSize: [27, 27],
+    iconAnchor: [14, 14],
   });
 }
 
-function FlyTo({ center, active }) {
+function AjustarMapa({ walkers, center, comuna }) {
   const map = useMap();
   useEffect(() => {
-    if (active && center) map.flyTo(center, 13, { duration: 0.6 });
-  }, [center, map, active]);
-  return null;
-}
-
-function AjustarZonas({ walkers, comuna }) {
-  const map = useMap();
-  useEffect(() => {
-    if (comuna) return;
-    const pts = walkers.flatMap((w) => zonaVisible(w) || []);
-    if (pts.length >= 3) map.fitBounds(pts, { padding: [36, 36], maxZoom: 15 });
-  }, [walkers, comuna, map]);
+    const ajustar = () => {
+      map.invalidateSize();
+      const pts = walkers.flatMap((w) => zonaVisible(w) || []);
+      if (pts.length >= 3) {
+        map.fitBounds(pts, { padding: [28, 28], maxZoom: 15, animate: false });
+        return;
+      }
+      if (center) map.setView(center, 13, { animate: false });
+    };
+    const t = setTimeout(ajustar, 200);
+    const t2 = setTimeout(ajustar, 800);
+    window.addEventListener("resize", ajustar);
+    window.addEventListener("orientationchange", ajustar);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(t2);
+      window.removeEventListener("resize", ajustar);
+      window.removeEventListener("orientationchange", ajustar);
+    };
+  }, [walkers, center, comuna, map]);
   return null;
 }
 
@@ -64,15 +72,11 @@ export default function Mapa() {
 
   useEffect(() => {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      try {
-        const c = await api(`/api/comunas/cercana?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`);
-        setFiltros((f) => (f.comuna ? f : { ...f, comuna: String(c.id) }));
-        setCenter([c.lat, c.lng]);
-      } catch {
-        setCenter([pos.coords.latitude, pos.coords.longitude]);
-      }
-    });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCenter([pos.coords.latitude, pos.coords.longitude]),
+      () => {},
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
   }, []);
 
   function onComuna(id) {
@@ -83,7 +87,13 @@ export default function Mapa() {
 
   return (
     <div className="flex flex-col">
-      <MapContainer center={center} zoom={12} className="h-[calc(100dvh-19.5rem)] min-h-[42vh] w-full" zoomControl={false}>
+      <MapContainer
+        center={center}
+        zoom={13}
+        preferCanvas
+        className="h-[52dvh] min-h-[280px] w-full"
+        zoomControl={false}
+      >
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {walkers.map((w) => {
           const poligono = zonaVisible(w);
@@ -93,7 +103,7 @@ export default function Mapa() {
               <Polygon
                 key={`zona-${w.id}`}
                 positions={poligono}
-                pathOptions={{ color, weight: 2, fillColor: color, fillOpacity: 0.22 }}
+                pathOptions={{ color, weight: 3, fillColor: color, fillOpacity: 0.35 }}
               >
                 <Popup>
                   <p className="font-bold m-0">{w.nombre}</p>
@@ -155,8 +165,7 @@ export default function Mapa() {
             </Marker>
           ) : null;
         })}
-        <FlyTo center={center} active={Boolean(filtros.comuna)} />
-        <AjustarZonas walkers={walkers} comuna={filtros.comuna} />
+        <AjustarMapa walkers={walkers} center={center} comuna={filtros.comuna} />
       </MapContainer>
 
       <div className="px-3 py-2 space-y-2">

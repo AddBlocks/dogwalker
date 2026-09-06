@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, clp } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import Stars from "../components/Stars";
+import PagoPaseador from "../components/PagoPaseador";
 
 export default function PaseadorPerfil() {
   const { id } = useParams();
@@ -38,6 +39,7 @@ export default function PaseadorPerfil() {
             ? `${w.radio_km} km a la redonda`
             : "Sin zona publicada"}
       </p>
+      <PagoPaseador walker={w} />
       {user?.rol === "dueno" && (
         <Link to={`/solicitar/${w.id}`} className="block text-center bg-greda text-white font-bold rounded-xl py-3">
           Solicitar paseo
