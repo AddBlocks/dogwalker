@@ -1,0 +1,234 @@
+Construí Patitas: una PWA en español chileno que conecta dueños de perros y paseadores solo en Santiago de Chile. Solo paseos. Sin hospedaje, sin pagos dentro de la app y sin chat externo. El trato y el pago se cierran por teléfono; la app coordina, muestra zona, documentos y recorrido GPS.
+
+El tono de toda la UI es informal chileno (podés, tenís, autorizá, indicá). Nombre de marca: Patitas (no PaseoPatitas). Dominio de correo de marca: @patitas.cl.
+
+================================================================================
+STACK Y REPO
+================================================================================
+
+Monorepo con dos paquetes:
+
+- frontend/: React 18 + Vite 6 + React Router 6 + Tailwind 3 + Leaflet/react-leaflet + vite-plugin-pwa.
+- backend/: Express 5 (ESM) + node:sqlite (Node 22+) + bcryptjs + jsonwebtoken + multer + nodemailer + tesseract.js.
+
+Scripts raíz:
+- npm run dev        → solo frontend (http://localhost:5173)
+- npm run dev:api    → backend (http://127.0.0.1:4000)
+- npm run seed / seed:demo / build / start
+
+El frontend en dev proxea /api a 127.0.0.1:4000. Si el proxy falla, responder 502 JSON: "La API no responde. ¿Está corriendo el backend?". allowedHosts: true. El backend en producción también sirve frontend/dist.
+
+PWA: name Patitas, lang es-CL, display standalone, theme #1B4332, background #F6F1E7, cache de tiles OSM.
+
+Estructura backend: src/index.js, db.js, middleware/auth.js, data/comunas.js, routes/{auth,users,walkers,solicitudes,paseos,resenas,comercios,anuncios,admin,caniles,perros,comunas}.js, services/{mail,encryption,documentos,cuentas,cedula,geocode,zonaCalles,avatares,notificaciones,retention,verification,mensajes}.js.
+
+Estructura frontend: src/App.jsx, main.jsx, index.css, lib/{api,auth,format,avatares,perros,zona}.js(x), components y pages según rutas abajo. Avatares de raza en frontend/public/avatares/avatar-{slug}.png.
+
+No escribas markdown extra salvo README y docs ya existentes. No commitees .env ni backend/data/*.db*.
+
+================================================================================
+DISEÑO VISUAL
+================================================================================
+
+Paleta Tailwind:
+- bosque #1B4332, bosque.claro #2D6A4F, bosque.hoja #40916C
+- greda #C45C26, crema #F6F1E7, arena #E8DCC8, tinta #1C1917, oro #E9B44C
+
+Fuentes: Fraunces (display / títulos), Nunito (cuerpo).
+Sombras: shadow-ficha. Cards blancas rounded-2xl con borde arena.
+Header sticky bosque + logo huella. Nav inferior fija 4 ítems: Mapa, Solicitudes/Bandeja, Directorio, Perfil (menú: Ver perfil / Cerrar sesión). Badge de avisos no leídos en Solicitudes.
+Login: pantalla bosque con texto crema y formulario en card crema.
+Pins del mapa: huellas para paseadores (destacado con acento greda), casita de perro para caniles.
+
+================================================================================
+ROLES Y GATES
+================================================================================
+
+Tres roles: dueno, paseador, admin.
+
+- Dueño: se registra y entra al toque (autorizado=1).
+- Paseador: queda autorizado=0 y estado_verificacion=pendiente hasta que el admin lo autorice. No puede usar endpoints protegidos (403 pendiente) salvo GETs públicos con auth(false).
+- Admin: acceso a /admin. Cuenta semilla: christian.aird@gmail.com (se crea con npm run seed).
+
+JWT 30 días en Authorization Bearer. auth(required): si required y autorizado=0 (y no admin) → 403. auth(false) parsea token pero no exige sesión (útil para mapa, caniles, foto de perro).
+
+Rutas frontend:
+- Públicas: /login, /registro, /privacidad
+- GateClave: /cambiar-clave (logueado, aunque deba cambiar clave)
+- Gate: el resto. Si user.debe_cambiar_clave → /cambiar-clave
+- /solicitar/:id y /publicar solo dueño
+- /verificacion y /mi-oferta solo paseador
+- /admin solo admin
+- Home / redirige a /mapa o /login
+
+================================================================================
+REGISTRO, LOGIN, CLAVE TEMPORAL, GOOGLE
+================================================================================
+
+Registro (consentimiento Ley 21.719 obligatorio; checkbox a /privacidad):
+- Dueño: JSON {nombre, email, telefono, password ≥8, rol, consentimiento} → token inmediato.
+- Paseador: multipart. Obligatorio cédula frente (JPG/PNG/WEBP). Opcional reverso, selfie. OCR (tesseract) lee fecha de nacimiento de la cédula; si falla, usa fecha del formulario. Menos de 15 años: rechazo. 15–17: exigir autorización de padres (imagen o PDF) y marcar solo_no_peligrosas=1. Guardar docs cifrados AES-256-GCM en backend/uploads/ids/. Avisar al admin por correo con link de revisión. Respuesta 201 pendiente, sin token. Redirigir a /login?pendiente=1.
+
+Login correo/clave. Si falla: mostrar "¿Olvidaste tu clave?" → confirma el mismo correo → POST /api/auth/recuperar. Respuesta genérica siempre (no filtrar si el correo existe). Generar clave temporal Pp + 8 chars, válida 5 minutos (temp_password_hash, temp_password_expires_at), debe_cambiar_clave=1. Enviar mail "Patitas: tu clave temporal". Al entrar con la temporal, forzar /cambiar-clave.
+
+Google OAuth opcional (si hay GOOGLE_CLIENT_ID). Callback pone google_token en query y el front lo guarda.
+
+Correo: si hay SMTP_* usar nodemailer; si no y el OS es Windows, enviar vía Outlook COM (PowerShell); si no, loguear y no fallar el flujo. Avisos a dueños/paseadores van DENTRO de la app (tabla avisos), no por mail/SMS (eso está desactivado). Solo el admin recibe mail al registrar un paseador.
+
+CORS: localhost/127.0.0.1 cualquier puerto, FRONTEND_URL, *.trycloudflare.com, *.ngrok-free.app, *.ngrok.io.
+
+================================================================================
+PERFIL Y CUENTA
+================================================================================
+
+Dueño y paseador editan nombre, email, celular. Paseador además:
+- Reemplaza (no borra) cédula frente/reverso, selfie, autorización de padres. El archivo viejo pasa a documentos_historico. El admin autoriza el borrado físico (Panel → Paseadores → Autorizar borrado). No hay purge automático a 30 días.
+- Datos de transferencia (banco chileno, tipo cuenta corriente/vista/RUT/ahorro, número, titular, RUT, email transferencia).
+- Momento de pago: antes / después / mixto (si mixto, monto_anticipado_clp). Se muestran en la ficha pública para que el dueño pague por fuera.
+
+Eliminar cuenta (Ley 21.719): anonimiza PII, cancela solicitudes/paseos abiertos, archiva docs de identidad para el admin (el usuario no los borra). Si el admin elimina a alguien, sí borra archivos. No se puede autoeliminar un admin.
+
+================================================================================
+PERROS DEL DUEÑO (MÚLTIPLES)
+================================================================================
+
+Tabla perros: user_id, nombre (opcional), raza (obligatoria), es_mezcla, agresivo, foto_path, avatar (slug), created_at.
+
+Razas fijas: Labrador, Golden Retriever, Poodle / Caniche, Pastor Alemán, Bulldog Francés, Chihuahua, Beagle, Boxer, Husky Siberiano, Border Collie, Cocker Spaniel, Yorkshire Terrier, Dachshund / Salchicha, Rottweiler, Pitbull / Staffordshire, Akita, Dogo Argentino, Fila Brasileiro, Mezcla / mestizo, Otra.
+
+Avatares 1:1 fondo crema #F6F1E7, estilo plano/cute, archivos:
+avatar-labrador, golden, poodle, pastor-aleman, bulldog-frances, chihuahua, beagle, boxer, husky, border-collie, cocker, yorkshire, salchicha, rottweiler, pitbull, akita, dogo, fila, mestizo, otra.
+
+API /api/perros (dueño): GET lista, POST/PUT multipart (nombre, raza, es_mezcla, agresivo, avatar, foto, quitar_foto), DELETE (nullifica perro_id en solicitudes y borra foto). GET /:id/foto con auth(false) sirve la foto subida (no cifrada) desde backend/uploads/perros/.
+
+Si la raza es mezcla/mestizo, exigir sí/no "¿Es peligroso o agresivo?". /api/auth/me incluye perros[]. Migrar users.perro_raza/mezcla/agresivo a una fila perros si el dueño ya tenía raza.
+
+UI Perfil: sección "Tus perros" (MisPerros) independiente del guardar perfil: listar, agregar, editar, eliminar. Formulario: nombre opcional, foto opcional, grilla de 20 avatares, select de raza, checkbox mezcla, radios agresivo.
+
+Al solicitar o publicar paseo: SelectorPerro elige un perro existente o crea uno inline (POST /api/perros) y manda perro_id. Solicitudes guardan snapshot raza, es_mezcla, agresivo, perro_nombre, perro_id. En la bandeja se ve foto/avatar + nombre + raza. Menores (solo_no_peligrosas) no pueden aceptar ni recibir solicitudes de perros agresivos.
+
+================================================================================
+MAPA, COMUNAS, ZONA DEL PASEADOR
+================================================================================
+
+32 comunas de la Provincia de Santiago (ids 1–32: Santiago, Cerrillos, Cerro Navia, Conchalí, El Bosque, Estación Central, Huechuraba, Independencia, La Cisterna, La Florida, La Granja, La Pintana, La Reina, Las Condes, Lo Barnechea, Lo Espejo, Lo Prado, Macul, Maipú, Ñuñoa, Pedro Aguirre Cerda, Peñalolén, Providencia, Pudahuel, Quilicura, Quinta Normal, Recoleta, Renca, San Joaquín, San Miguel, San Ramón, Vitacura) con lat/lng y radio aproximado. Polígonos = círculos GeoJSON, no shapefile oficial.
+
+Mapa Leaflet + OSM, centro inicial Santiago (-33.4372, -70.6506). Filtros: comuna, precio máx, calificación mín. Vista mapa o lista (WalkerCard). Pins solo de paseadores aprobados con zona (lat/lng/radio). Destacados primero. Click → /paseador/:id.
+
+Mi oferta (paseador): descripción, precio CLP, disponibilidad, dirección PRIVADA (nunca se muestra a dueños), radio_km, lista de calles. Geocodificar con Nominatim (Santiago). Si hay ≥3 calles ubicadas, pintar polígono (cruces); si no, círculo de radio. Dirección no viaja al cliente.
+
+================================================================================
+CANILES
+================================================================================
+
+Cualquier usuario logueado en Mapa puede "Agregar canil" (nombre + dirección geocodificada). Duplicado si hay otro a <80 m. Pin casita de perro.
+
+Eliminar: el usuario pide baja (POST /api/caniles/:id/baja). El canil SIGUE en el mapa hasta que el admin en Panel → Caniles → Autorizar eliminación (soft delete deleted_at).
+
+================================================================================
+SOLICITUDES Y MATCH
+================================================================================
+
+Dueño puede:
+- Enviar a un paseador concreto (/solicitar/:id) → estado pendiente.
+- Publicar abierta (/publicar) → la ven paseadores cuya zona cubre esa comuna (haversine ≤ radio_km).
+
+Campos: comuna, horario, frecuencia (Una vez | 2 a 3 veces por semana | Lunes a viernes | Todos los días), monto CLP, mensaje, perro_id.
+
+Paseador en Bandeja: pendientes propias + abiertas en su zona (ocultar agresivos si es menor). Aceptar → crea paseo acordado, intercambia teléfonos, aviso "hay match" al dueño. Rechazar solo pendientes. Dueño puede cancelar abierta/pendiente.
+
+Avisos in-app (tabla avisos): tipo match/pedido, poll 20s, badge en nav.
+
+================================================================================
+PASEOS, GPS, RESEÑAS
+================================================================================
+
+Paseo estados: acordado → en_curso → completado | cancelado.
+El paseador inicia y comparte GPS (puntos en paseo_puntos). El dueño ve el recorrido en vivo. Al terminar se calcula distancia. Ambos ven teléfonos mientras el paseo no esté cancelado.
+
+Tras completar:
+- Dueño: 5 preguntas 1–5 (puntualidad, trato al perro, indicaciones, comunicación, lo recomendarías) + comentario. Promedio actualiza al paseador.
+- Paseador: 1 pregunta (experiencia con el dueño) + comentario. Promedio actualiza al dueño.
+Una reseña por lado por paseo.
+
+================================================================================
+DIRECTORIO Y PUBLICIDAD
+================================================================================
+
+Comercios: veterinaria, peluqueria, tienda, adiestrador. Usuarios logueados sugieren; admin aprueba/rechaza/destaca. Reseñas de comercios (puntaje + comentario).
+
+Anuncios: ubicacion banner_mapa | tarjeta_busqueda | superior_directorio; segmento duenos | paseadores | ambos; comuna opcional; fechas; impresiones y clics. Componente AdSlot.
+
+================================================================================
+PANEL ADMIN (/admin)
+================================================================================
+
+Tabs: Usuarios, Paseadores, Caniles, Comercios, Anuncios, Métricas.
+
+Usuarios: buscar, ver, autorizar paseador (el botón Autorizar exige ver cédula frente; si no hay frente, deshabilitado). Mostrar docs automáticamente en paseadores no autorizados. Eliminar cuenta (borra archivos).
+
+Paseadores: aprobar/rechazar verificación, destacado, ver docs cifrados, autorizar borrado de versiones en documentos_historico.
+
+Link de mail GET /api/auth/aprobar-paseador?token= : página HTML de revisión con imágenes de cédula/selfie. Solo ?confirmar=1 autoriza de verdad. Docs vía GET /api/auth/aprobar-paseador/documento.
+
+Caniles: listar y autorizar eliminación pedida.
+Comercios/anuncios: CRUD de estado y destacados.
+Métricas: conteos básicos.
+
+================================================================================
+MODELO DE DATOS (SQLITE)
+================================================================================
+
+PRAGMA journal_mode=WAL; foreign_keys=ON; busy_timeout=5000. Archivo backend/data/paseopatitas.db.
+
+Tablas: comunas, users, paseadores, perros, paseador_comunas, solicitudes, paseos, paseo_puntos, resenas, comercios, comercio_resenas, anuncios, anuncio_eventos, avisos, caniles, documentos_historico.
+
+users extra: autorizado, notify_email, notify_sms, perro_* (legado), temp_password_hash, temp_password_expires_at, debe_cambiar_clave, deleted_at.
+
+caniles: nombre, direccion, lat, lng, comuna_id, reportado_por, baja_solicitada_por, baja_solicitada_at, deleted_at.
+
+Migraciones incrementales en db.js (no romper bases ya creadas). Seed: admin + 32 comunas. seed:demo agrega dueño/paseadores ficticios (dueno@patitas.cl / PaseoDemo123).
+
+================================================================================
+API (prefijo /api)
+================================================================================
+
+GET /salud
+auth: registro, login, recuperar, cambiar-clave, me, google/url, google/callback, aprobar-paseador, aprobar-paseador/documento
+usuarios: PUT me, POST me/eliminar, avisos, avisos/leer
+paseadores: listado/filtros, :id, mi-oferta, mi-pago, verificacion (multipart), documentos
+solicitudes: POST, GET mias, :id/aceptar|rechazar|cancelar
+paseos: listado, :id, iniciar, punto GPS, terminar
+resenas, comunas, comercios, anuncios, caniles, perros
+admin: usuarios, autorizar, documentos, paseadores, caniles, comercios, anuncios, metricas
+
+Errores en español chileno. JSON {error}.
+
+================================================================================
+CUMPLIMIENTO Y SEGURIDAD
+================================================================================
+
+Ley 21.719: consentimiento explícito, /privacidad, derecho de eliminación.
+Cédulas/selfie cifradas (FILE_KEY 32 bytes hex, AES-256-GCM). Fotos de perros NO se cifran.
+El usuario no puede borrar sus propios docs de identidad; solo reemplazar. Borrado físico solo con autorización admin.
+Paseadores no autorizados no usan la app.
+Menores de 15 no se registran como paseadores. 15–17 solo razas no peligrosas.
+SQLite busy_timeout para no colgar deletes bajo proxy/túnel.
+
+================================================================================
+CÓMO CORRER
+================================================================================
+
+Terminal 1: cd backend && copy .env.example .env && npm install && npm run seed && npm run dev
+Terminal 2: cd frontend && npm install && npm run dev
+Abrir http://localhost:5173
+
+Variables: PORT, JWT_SECRET, FILE_KEY, VERIFY_PROVIDER=mock|truora|toc, GOOGLE_*, FRONTEND_URL, API_PUBLIC_URL, ADMIN_NOTIFY_EMAIL, SMTP_*, (Twilio queda en .env pero SMS/WhatsApp están desactivados).
+
+================================================================================
+NO IMPLEMENTAR
+================================================================================
+
+Hospedaje de perros. Pasarela de pagos. Chat in-app. Borrado automático de cédulas a los 30 días. Mail/SMS transaccional a dueños o paseadores (salvo clave temporal y aviso al admin de nuevo paseador). Shapefiles oficiales de comunas. App nativa nativa (sí PWA; hay notas de TWA/Capacitor en docs/MANUAL-GOOGLE-PLAY.md pero no es el MVP).
+
+Construí el producto completo y usable en local, con migraciones, seed del admin, UI coherente y las reglas de negocio de arriba tal cual.
