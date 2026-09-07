@@ -20,6 +20,18 @@ export function pinHuellasHtml(destacado = false) {
   return `<div class="pin-paseador ${destacado ? "destacado" : ""}">${HUELLAS_SVG}</div>`;
 }
 
+const CANIL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-hidden="true">
+  <rect width="64" height="64" rx="14" fill="#F6F1E7"/>
+  <path d="M10 30 L32 10 L54 30 V54 H10 Z" fill="#8B4513"/>
+  <path d="M10 30 L32 10 L54 30 H10 Z" fill="#5C2C0E"/>
+  <path d="M24 54 V38 A8 8 0 0 1 40 38 V54" fill="#F6F1E7"/>
+  <ellipse cx="18" cy="24" rx="3" ry="4" fill="#E9B44C"/>
+</svg>`;
+
+export function pinCanilHtml() {
+  return `<div class="pin-canil">${CANIL_SVG}</div>`;
+}
+
 export default function Logo({ className = "w-8 h-8" }) {
   return (
     <span

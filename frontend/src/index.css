@@ -53,3 +53,19 @@ body {
 .pin-paseador.destacado {
   border-color: #e9b44c;
 }
+
+.pin-canil {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid #5c2c0e;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+  background: #f6f1e7;
+}
+
+.pin-canil svg {
+  display: block;
+  width: 30px;
+  height: 30px;
+}

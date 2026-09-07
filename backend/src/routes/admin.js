@@ -97,6 +97,33 @@ adminRouter.post("/paseadores/:id/destacado", (req, res) => {
   res.json({ ok: true, destacado: !!val });
 });
 
+adminRouter.get("/caniles", (_req, res) => {
+  res.json(
+    db
+      .prepare(
+        `SELECT c.id, c.nombre, c.direccion, c.lat, c.lng, c.created_at, c.baja_solicitada_at,
+                u.nombre AS reportado_por_nombre, u.email AS reportado_por_email,
+                b.nombre AS baja_por_nombre, b.email AS baja_por_email
+         FROM caniles c
+         JOIN users u ON u.id = c.reportado_por
+         LEFT JOIN users b ON b.id = c.baja_solicitada_por
+         WHERE c.deleted_at IS NULL
+         ORDER BY CASE WHEN c.baja_solicitada_por IS NULL THEN 1 ELSE 0 END, c.created_at DESC`
+      )
+      .all()
+  );
+});
+
+adminRouter.post("/caniles/:id/autorizar-baja", (req, res) => {
+  const c = db.prepare("SELECT * FROM caniles WHERE id = ? AND deleted_at IS NULL").get(Number(req.params.id));
+  if (!c) return res.status(404).json({ error: "Canil no encontrado." });
+  if (!c.baja_solicitada_por) {
+    return res.status(400).json({ error: "Nadie pidió eliminar este canil." });
+  }
+  db.prepare("UPDATE caniles SET deleted_at = datetime('now') WHERE id = ?").run(c.id);
+  res.json({ ok: true });
+});
+
 adminRouter.get("/comercios", (_req, res) => {
   res.json(
     db

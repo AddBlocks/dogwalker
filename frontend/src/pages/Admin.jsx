@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, apiBlob } from "../lib/api";
 
-const TABS = ["Usuarios", "Paseadores", "Comercios", "Anuncios", "Métricas"];
+const TABS = ["Usuarios", "Paseadores", "Caniles", "Comercios", "Anuncios", "Métricas"];
 
 const ROL_LABEL = { dueno: "Dueño", paseador: "Paseador", admin: "Admin" };
 
@@ -32,6 +32,7 @@ export default function Admin() {
       </div>
       {tab === "Usuarios" && <UsuariosAdmin />}
       {tab === "Paseadores" && <PaseadoresAdmin />}
+      {tab === "Caniles" && <CanilesAdmin />}
       {tab === "Comercios" && <ComerciosAdmin />}
       {tab === "Anuncios" && <AnunciosAdmin />}
       {tab === "Métricas" && <MetricasAdmin />}
@@ -346,6 +347,48 @@ function DocumentosPaseador({ paseador, onChange }) {
             Autorizar borrado
           </button>
         </figure>
+      ))}
+    </div>
+  );
+}
+
+function CanilesAdmin() {
+  const [rows, setRows] = useState([]);
+  const [error, setError] = useState("");
+  function load() {
+    api("/api/admin/caniles").then(setRows);
+  }
+  useEffect(load, []);
+
+  return (
+    <div className="space-y-3">
+      {error && <p className="text-sm text-greda">{error}</p>}
+      {rows.length === 0 && <p className="text-sm text-tinta/60">Cuando alguien marque un canil en el mapa, aparece acá.</p>}
+      {rows.map((c) => (
+        <article key={c.id} className="bg-white border border-arena rounded-2xl p-3">
+          <p className="font-bold">{c.nombre}</p>
+          <p className="text-xs">{c.direccion}</p>
+          <p className="text-xs text-tinta/50">Marcado por {c.reportado_por_nombre} · {c.reportado_por_email}</p>
+          {c.baja_solicitada_at ? (
+            <p className="text-xs text-greda mt-1">
+              Pedido de eliminación de {c.baja_por_nombre} ({c.baja_por_email})
+            </p>
+          ) : (
+            <p className="text-xs text-tinta/50 mt-1">Nadie pidió eliminarlo</p>
+          )}
+          {c.baja_solicitada_at && (
+            <button
+              className="mt-2 text-xs font-bold bg-greda text-white px-3 py-1 rounded-full"
+              onClick={() =>
+                api(`/api/admin/caniles/${c.id}/autorizar-baja`, { method: "POST" })
+                  .then(load)
+                  .catch((e) => setError(e.message))
+              }
+            >
+              Autorizar eliminación
+            </button>
+          )}
+        </article>
       ))}
     </div>
   );

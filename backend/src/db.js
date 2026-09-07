@@ -203,6 +203,7 @@ export function migrate() {
   migrateEdadYPerro();
   migrateClaveTemporal();
   migrateDocumentosHistorico();
+  migrateCaniles();
 }
 
 function tableSql(name) {
@@ -322,6 +323,25 @@ function migrateClaveTemporal() {
   if (!hasColumn("users", "temp_password_hash")) db.exec("ALTER TABLE users ADD COLUMN temp_password_hash TEXT");
   if (!hasColumn("users", "temp_password_expires_at")) db.exec("ALTER TABLE users ADD COLUMN temp_password_expires_at TEXT");
   if (!hasColumn("users", "debe_cambiar_clave")) db.exec("ALTER TABLE users ADD COLUMN debe_cambiar_clave INTEGER DEFAULT 0");
+}
+
+function migrateCaniles() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS caniles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      direccion TEXT NOT NULL,
+      lat REAL NOT NULL,
+      lng REAL NOT NULL,
+      comuna_id INTEGER REFERENCES comunas(id),
+      reportado_por INTEGER NOT NULL REFERENCES users(id),
+      baja_solicitada_por INTEGER REFERENCES users(id),
+      baja_solicitada_at TEXT,
+      deleted_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS caniles_activos_idx ON caniles(deleted_at);
+  `);
 }
 
 function migrateDocumentosHistorico() {

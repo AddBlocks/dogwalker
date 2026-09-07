@@ -9,7 +9,7 @@ import { centroide, zonaVisible } from "../lib/zona";
 import AdSlot from "../components/AdSlot";
 import WalkerCard from "../components/WalkerCard";
 import Stars from "../components/Stars";
-import { pinHuellasHtml } from "../components/Logo";
+import { pinCanilHtml, pinHuellasHtml } from "../components/Logo";
 
 function pinIcon(destacado) {
   return L.divIcon({
@@ -17,6 +17,15 @@ function pinIcon(destacado) {
     html: pinHuellasHtml(destacado),
     iconSize: [27, 27],
     iconAnchor: [14, 14],
+  });
+}
+
+function pinCanil() {
+  return L.divIcon({
+    className: "",
+    html: pinCanilHtml(),
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
   });
 }
 
@@ -54,6 +63,11 @@ export default function Mapa() {
   const [ad, setAd] = useState(null);
   const [center, setCenter] = useState([-33.4372, -70.6506]);
   const [lista, setLista] = useState(false);
+  const [caniles, setCaniles] = useState([]);
+  const [formCanil, setFormCanil] = useState(false);
+  const [canil, setCanil] = useState({ nombre: "", direccion: "" });
+  const [msgCanil, setMsgCanil] = useState("");
+  const [errCanil, setErrCanil] = useState("");
 
   useEffect(() => {
     api("/api/comunas").then(setComunas);
@@ -65,6 +79,7 @@ export default function Mapa() {
     if (filtros.precio_max) q.set("precio_max", filtros.precio_max);
     if (filtros.calificacion_min) q.set("calificacion_min", filtros.calificacion_min);
     api(`/api/paseadores?${q}`).then(setWalkers);
+    api("/api/caniles").then(setCaniles).catch(() => setCaniles([]));
     api(`/api/anuncios?ubicacion=banner_mapa&comuna=${filtros.comuna || ""}`)
       .then((rows) => setAd(rows[0] || null))
       .catch(() => {});
@@ -78,6 +93,34 @@ export default function Mapa() {
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
   }, []);
+
+  async function crearCanil(e) {
+    e.preventDefault();
+    setErrCanil("");
+    setMsgCanil("");
+    try {
+      await api("/api/caniles", { method: "POST", body: JSON.stringify(canil) });
+      setCanil({ nombre: "", direccion: "" });
+      setFormCanil(false);
+      setMsgCanil("Canil agregado al mapa.");
+      const rows = await api("/api/caniles");
+      setCaniles(rows);
+    } catch (err) {
+      setErrCanil(err.message);
+    }
+  }
+
+  async function pedirBaja(id) {
+    if (!confirm("¿Este canil ya no existe? El administrador tiene que autorizar el borrado.")) return;
+    setErrCanil("");
+    try {
+      const data = await api(`/api/caniles/${id}/baja`, { method: "POST" });
+      setMsgCanil(data.mensaje);
+      setCaniles(await api("/api/caniles"));
+    } catch (err) {
+      setErrCanil(err.message);
+    }
+  }
 
   function onComuna(id) {
     const c = comunas.find((x) => String(x.id) === String(id));
@@ -165,24 +208,72 @@ export default function Mapa() {
             </Marker>
           ) : null;
         })}
+        {caniles.map((c) => (
+          <Marker key={`canil-${c.id}`} position={[c.lat, c.lng]} icon={pinCanil()}>
+            <Popup>
+              <p className="font-bold m-0">{c.nombre}</p>
+              <p className="m-0 text-xs">{c.direccion}</p>
+              <p className="m-0 text-xs text-tinta/60">Marcado por {c.reportado_por_nombre}</p>
+              {c.baja_solicitada ? (
+                <p className="m-0 text-xs text-greda">Pedido de eliminación: espera al administrador</p>
+              ) : user ? (
+                <button type="button" className="text-xs font-bold text-greda underline mt-1" onClick={() => pedirBaja(c.id)}>
+                  Eliminar
+                </button>
+              ) : (
+                <p className="m-0 text-xs">Iniciá sesión para reportar que ya no existe</p>
+              )}
+            </Popup>
+          </Marker>
+        ))}
         <AjustarMapa walkers={walkers} center={center} comuna={filtros.comuna} />
       </MapContainer>
 
       <div className="px-3 py-2 space-y-2">
         {ad && <AdSlot ad={ad} compact />}
         <div className="flex items-center justify-between">
-          <p className="text-sm font-bold text-bosque">{walkers.length} paseadores</p>
+          <p className="text-sm font-bold text-bosque">{walkers.length} paseadores · {caniles.length} caniles</p>
           <div className="flex gap-2">
             {user?.rol === "dueno" && (
               <Link to="/publicar" className="text-xs font-bold bg-greda text-white px-3 py-1.5 rounded-full">
                 Publicar solicitud
               </Link>
             )}
+            {user && (
+              <button
+                className="text-xs font-bold bg-bosque text-crema px-3 py-1.5 rounded-full"
+                onClick={() => setFormCanil((v) => !v)}
+              >
+                {formCanil ? "Cerrar" : "Agregar canil"}
+              </button>
+            )}
             <button className="text-xs font-bold underline" onClick={() => setLista((v) => !v)}>
               {lista ? "Ocultar lista" : "Ver lista"}
             </button>
           </div>
         </div>
+        {formCanil && user && (
+          <form onSubmit={crearCanil} className="bg-white border border-arena rounded-2xl p-3 space-y-2">
+            <p className="text-sm font-bold">Nuevo canil</p>
+            <input
+              className="w-full rounded-xl border border-arena px-3 py-2 text-sm"
+              placeholder="Nombre (ej. Canil municipal Huechuraba)"
+              value={canil.nombre}
+              onChange={(e) => setCanil((c) => ({ ...c, nombre: e.target.value }))}
+              required
+            />
+            <input
+              className="w-full rounded-xl border border-arena px-3 py-2 text-sm"
+              placeholder="Dirección (calle, número y comuna)"
+              value={canil.direccion}
+              onChange={(e) => setCanil((c) => ({ ...c, direccion: e.target.value }))}
+              required
+            />
+            <button className="w-full bg-bosque text-crema rounded-xl py-2 text-sm font-bold">Publicar en el mapa</button>
+          </form>
+        )}
+        {errCanil && <p className="text-sm text-greda">{errCanil}</p>}
+        {msgCanil && <p className="text-sm text-bosque">{msgCanil}</p>}
         {walkers.length === 0 && (
           <p className="text-xs text-tinta/50">
             Aún no hay paseadores con zona de km publicada
