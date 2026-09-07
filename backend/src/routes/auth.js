@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import { enviarCorreo } from "../services/mail.js";
 import { db, lastId, publicUser } from "../db.js";
+import { listarPerros } from "./perros.js";
 import { auth, signToken } from "../middleware/auth.js";
 import { avisarAdminNuevoRegistro } from "../services/notificaciones.js";
 import { sendEncryptedFile, writeEncrypted } from "../services/encryption.js";
@@ -324,7 +325,13 @@ authRouter.get("/me", auth(true), (req, res) => {
       };
     }
   }
-  res.json({ user: publicUser(req.user), paseador, googleConfigured: Boolean(process.env.GOOGLE_CLIENT_ID) });
+  const perros = req.user.rol === "dueno" ? listarPerros(req.user.id) : [];
+  res.json({
+    user: publicUser(req.user),
+    paseador,
+    perros,
+    googleConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
+  });
 });
 
 authRouter.get("/google/url", (_req, res) => {

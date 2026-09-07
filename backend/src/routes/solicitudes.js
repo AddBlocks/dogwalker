@@ -3,24 +3,46 @@ import { db, lastId } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { haversineKm } from "../services/geocode.js";
 import { avisarMatch, avisarSolicitudAPaseador } from "../services/notificaciones.js";
+import { slugForRaza } from "../services/avatares.js";
+
+function decorateSolicitud(s, { hidePaseadorPhone = false, hideDuenoPhone = false } = {}) {
+  const { perro_foto_path, perro_nombre_live, perro_avatar, ...rest } = s;
+  return {
+    ...rest,
+    paseador_telefono: hidePaseadorPhone ? null : s.paseador_telefono,
+    dueno_telefono: hideDuenoPhone ? null : s.dueno_telefono,
+    perro_nombre: s.perro_nombre || perro_nombre_live || "",
+    perro_avatar: perro_avatar || slugForRaza(s.raza),
+    perro_tiene_foto: Boolean(perro_foto_path),
+  };
+}
 
 export const solicitudesRouter = Router();
 
 solicitudesRouter.post("/", auth(true), requireRol("dueno"), async (req, res) => {
-  const { paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje, raza, es_mezcla, agresivo } = req.body || {};
+  const { paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje, raza, es_mezcla, agresivo, perro_id } = req.body || {};
   if (!comuna_id || !horario || !frecuencia || !monto_clp) {
     return res.status(400).json({ error: "Completa comuna, horario, frecuencia y monto." });
   }
-  const razaNom = String(raza || req.user.perro_raza || "").trim();
+  let perro = null;
+  if (perro_id) {
+    perro = db.prepare("SELECT * FROM perros WHERE id = ? AND user_id = ?").get(Number(perro_id), req.user.id);
+    if (!perro) return res.status(404).json({ error: "Ese perro no está en tu lista." });
+  }
+  const razaNom = String(perro?.raza || raza || req.user.perro_raza || "").trim();
   if (!razaNom) {
     return res.status(400).json({ error: "Indicá la raza de tu perro." });
   }
-  const mezcla = es_mezcla === true || es_mezcla === 1 || es_mezcla === "1" || es_mezcla === "true" || /mezcla|mestizo/i.test(razaNom);
-  const agresivoEnviado = Object.prototype.hasOwnProperty.call(req.body || {}, "agresivo");
-  const esAgresivo = agresivo === true || agresivo === 1 || agresivo === "1" || agresivo === "true";
+  const mezcla =
+    perro != null
+      ? Boolean(perro.es_mezcla)
+      : es_mezcla === true || es_mezcla === 1 || es_mezcla === "1" || es_mezcla === "true" || /mezcla|mestizo/i.test(razaNom);
+  const agresivoEnviado = perro != null || Object.prototype.hasOwnProperty.call(req.body || {}, "agresivo");
+  const esAgresivo = perro != null ? Boolean(perro.agresivo) : agresivo === true || agresivo === 1 || agresivo === "1" || agresivo === "true";
   if (mezcla && !agresivoEnviado) {
     return res.status(400).json({ error: "Si tu perro es mezcla, indicá si es peligroso o agresivo." });
   }
+  const perroNombre = perro?.nombre || String(req.body?.perro_nombre || "").trim() || null;
   if (paseador_id) {
     const walker = db
       .prepare(
@@ -38,8 +60,8 @@ solicitudesRouter.post("/", auth(true), requireRol("dueno"), async (req, res) =>
   const estado = paseador_id ? "pendiente" : "abierta";
   const r = db
     .prepare(
-      `INSERT INTO solicitudes (dueno_id, paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje, estado, raza, es_mezcla, agresivo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO solicitudes (dueno_id, paseador_id, comuna_id, horario, frecuencia, monto_clp, mensaje, estado, raza, es_mezcla, agresivo, perro_id, perro_nombre)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       req.user.id,
@@ -52,7 +74,9 @@ solicitudesRouter.post("/", auth(true), requireRol("dueno"), async (req, res) =>
       estado,
       razaNom,
       mezcla ? 1 : 0,
-      esAgresivo ? 1 : 0
+      esAgresivo ? 1 : 0,
+      perro ? perro.id : null,
+      perroNombre
     );
   if (paseador_id) {
     const walker = db.prepare("SELECT * FROM users WHERE id = ?").get(Number(paseador_id));
@@ -70,18 +94,17 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
     const rows = db
       .prepare(
         `SELECT s.*, c.nombre AS comuna, u.nombre AS paseador_nombre, u.telefono AS paseador_telefono,
+                p.nombre AS perro_nombre_live, p.avatar AS perro_avatar, p.foto_path AS perro_foto_path,
                 (SELECT id FROM paseos WHERE solicitud_id = s.id ORDER BY id DESC LIMIT 1) AS paseo_id
          FROM solicitudes s
          JOIN comunas c ON c.id = s.comuna_id
          LEFT JOIN users u ON u.id = s.paseador_id
+         LEFT JOIN perros p ON p.id = s.perro_id
          WHERE s.dueno_id = ?
          ORDER BY s.created_at DESC`
       )
       .all(req.user.id)
-      .map((s) => ({
-        ...s,
-        paseador_telefono: s.estado === "aceptada" ? s.paseador_telefono : null,
-      }));
+      .map((s) => decorateSolicitud(s, { hidePaseadorPhone: s.estado !== "aceptada" }));
     return res.json(rows);
   }
   if (req.user.rol === "paseador") {
@@ -92,10 +115,12 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
       .prepare(
         `SELECT s.*, c.nombre AS comuna, c.lat AS comuna_lat, c.lng AS comuna_lng,
                 d.nombre AS dueno_nombre, d.telefono AS dueno_telefono,
+                p.nombre AS perro_nombre_live, p.avatar AS perro_avatar, p.foto_path AS perro_foto_path,
                 (SELECT id FROM paseos WHERE solicitud_id = s.id ORDER BY id DESC LIMIT 1) AS paseo_id
          FROM solicitudes s
          JOIN comunas c ON c.id = s.comuna_id
          JOIN users d ON d.id = s.dueno_id
+         LEFT JOIN perros p ON p.id = s.perro_id
          WHERE s.paseador_id = ? OR s.estado = 'abierta'
          ORDER BY CASE s.estado WHEN 'pendiente' THEN 0 WHEN 'abierta' THEN 1 ELSE 2 END, s.created_at DESC`
       )
@@ -109,10 +134,11 @@ solicitudesRouter.get("/mias", auth(true), (req, res) => {
         if (zona.solo_no_peligrosas && s.agresivo) return false;
         return haversineKm({ lat: zona.lat, lng: zona.lng }, { lat: s.comuna_lat, lng: s.comuna_lng }) <= Number(zona.radio_km);
       })
-      .map(({ comuna_lat, comuna_lng, ...s }) => ({
-        ...s,
-        dueno_telefono: s.estado === "aceptada" && s.paseador_id === req.user.id ? s.dueno_telefono : null,
-      }));
+      .map(({ comuna_lat, comuna_lng, ...s }) =>
+        decorateSolicitud(s, {
+          hideDuenoPhone: !(s.estado === "aceptada" && s.paseador_id === req.user.id),
+        })
+      );
     return res.json(rows);
   }
   res.json([]);

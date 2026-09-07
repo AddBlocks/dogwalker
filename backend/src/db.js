@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { slugForRaza } from "./services/avatares.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "..", "data");
@@ -82,6 +83,18 @@ export function migrate() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS perros (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      nombre TEXT,
+      raza TEXT NOT NULL,
+      es_mezcla INTEGER DEFAULT 0,
+      agresivo INTEGER DEFAULT 0,
+      foto_path TEXT,
+      avatar TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS paseador_comunas (
       paseador_id INTEGER NOT NULL REFERENCES paseadores(id) ON DELETE CASCADE,
       comuna_id INTEGER NOT NULL REFERENCES comunas(id),
@@ -100,6 +113,8 @@ export function migrate() {
       raza TEXT,
       es_mezcla INTEGER DEFAULT 0,
       agresivo INTEGER DEFAULT 0,
+      perro_id INTEGER REFERENCES perros(id),
+      perro_nombre TEXT,
       estado TEXT DEFAULT 'abierta'
         CHECK(estado IN ('abierta','pendiente','aceptada','rechazada','cancelada')),
       created_at TEXT DEFAULT (datetime('now')),
@@ -204,6 +219,7 @@ export function migrate() {
   migrateClaveTemporal();
   migrateDocumentosHistorico();
   migrateCaniles();
+  migratePerros();
 }
 
 function tableSql(name) {
@@ -323,6 +339,42 @@ function migrateClaveTemporal() {
   if (!hasColumn("users", "temp_password_hash")) db.exec("ALTER TABLE users ADD COLUMN temp_password_hash TEXT");
   if (!hasColumn("users", "temp_password_expires_at")) db.exec("ALTER TABLE users ADD COLUMN temp_password_expires_at TEXT");
   if (!hasColumn("users", "debe_cambiar_clave")) db.exec("ALTER TABLE users ADD COLUMN debe_cambiar_clave INTEGER DEFAULT 0");
+}
+
+function migratePerros() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS perros (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      nombre TEXT,
+      raza TEXT NOT NULL,
+      es_mezcla INTEGER DEFAULT 0,
+      agresivo INTEGER DEFAULT 0,
+      foto_path TEXT,
+      avatar TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS perros_user_idx ON perros(user_id);
+  `);
+  if (!hasColumn("solicitudes", "perro_id")) db.exec("ALTER TABLE solicitudes ADD COLUMN perro_id INTEGER REFERENCES perros(id)");
+  if (!hasColumn("solicitudes", "perro_nombre")) db.exec("ALTER TABLE solicitudes ADD COLUMN perro_nombre TEXT");
+
+  const duenos = db
+    .prepare(
+      `SELECT id, perro_raza, perro_mezcla, perro_agresivo FROM users
+       WHERE rol = 'dueno' AND deleted_at IS NULL
+         AND perro_raza IS NOT NULL AND trim(perro_raza) != ''`
+    )
+    .all();
+  const countStmt = db.prepare("SELECT COUNT(*) AS n FROM perros WHERE user_id = ?");
+  const insert = db.prepare(
+    `INSERT INTO perros (user_id, nombre, raza, es_mezcla, agresivo, avatar)
+     VALUES (?, NULL, ?, ?, ?, ?)`
+  );
+  for (const u of duenos) {
+    if (countStmt.get(u.id).n > 0) continue;
+    insert.run(u.id, u.perro_raza, u.perro_mezcla ? 1 : 0, u.perro_agresivo ? 1 : 0, slugForRaza(u.perro_raza));
+  }
 }
 
 function migrateCaniles() {

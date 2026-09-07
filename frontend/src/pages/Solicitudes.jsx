@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, clp } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { estadoLabel } from "../lib/format";
+import FotoPerro from "../components/FotoPerro";
 
 export default function Solicitudes() {
   const { user } = useAuth();
@@ -73,12 +74,25 @@ export default function Solicitudes() {
           <p className="font-display text-lg">{s.comuna}</p>
           <p className="text-sm">{s.horario} · {s.frecuencia}</p>
           <p className="font-bold">{clp(s.monto_clp)}</p>
-          {s.raza && (
-            <p className="text-sm">
-              Perro: {s.raza}
-              {s.es_mezcla ? " (mezcla)" : ""}
-              {s.agresivo ? " · peligroso/agresivo" : ""}
-            </p>
+          {(s.raza || s.perro_nombre) && (
+            <div className="flex items-center gap-2 pt-1">
+              <FotoPerro
+                perro={{
+                  id: s.perro_id,
+                  raza: s.raza,
+                  avatar: s.perro_avatar,
+                  tiene_foto: s.perro_tiene_foto,
+                  nombre: s.perro_nombre,
+                }}
+                className="w-10 h-10"
+              />
+              <p className="text-sm">
+                {s.perro_nombre ? `${s.perro_nombre} · ` : ""}
+                {s.raza}
+                {s.es_mezcla ? " (mezcla)" : ""}
+                {s.agresivo ? " · peligroso/agresivo" : ""}
+              </p>
+            </div>
           )}
           {s.mensaje && <p className="text-sm text-tinta/70">{s.mensaje}</p>}
           {user.rol === "dueno" && s.paseador_nombre && <p className="text-sm">Paseador: {s.paseador_nombre}</p>}

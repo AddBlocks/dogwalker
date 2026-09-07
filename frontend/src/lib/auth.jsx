@@ -6,6 +6,7 @@ const AuthCtx = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [paseador, setPaseador] = useState(null);
+  const [perros, setPerros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [googleConfigured, setGoogleConfigured] = useState(false);
 
@@ -13,6 +14,7 @@ export function AuthProvider({ children }) {
     if (!getToken()) {
       setUser(null);
       setPaseador(null);
+      setPerros([]);
       setLoading(false);
       return;
     }
@@ -20,11 +22,13 @@ export function AuthProvider({ children }) {
       const data = await api("/api/auth/me");
       setUser(data.user);
       setPaseador(data.paseador);
+      setPerros(data.perros || []);
       setGoogleConfigured(data.googleConfigured);
     } catch {
       setToken(null);
       setUser(null);
       setPaseador(null);
+      setPerros([]);
     } finally {
       setLoading(false);
     }
@@ -38,6 +42,7 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       paseador,
+      perros,
       loading,
       googleConfigured,
       async login(email, password) {
@@ -53,10 +58,11 @@ export function AuthProvider({ children }) {
         setToken(null);
         setUser(null);
         setPaseador(null);
+        setPerros([]);
       },
       refresh,
     }),
-    [user, paseador, loading, googleConfigured]
+    [user, paseador, perros, loading, googleConfigured]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;

@@ -2,20 +2,23 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { FRECUENCIAS } from "../lib/format";
-import DatosPerro from "../components/DatosPerro";
+import { PERRO_VACIO } from "../lib/avatares";
+import { guardarPerro } from "../lib/perros";
+import SelectorPerro from "../components/SelectorPerro";
 import { useAuth } from "../lib/auth";
 
 export default function PublicarSolicitud() {
   const nav = useNavigate();
-  const { user } = useAuth();
+  const { perros, refresh } = useAuth();
   const [comunas, setComunas] = useState([]);
   const [form, setForm] = useState({ comuna_id: "", horario: "", frecuencia: FRECUENCIAS[0], monto_clp: "", mensaje: "" });
-  const [perro, setPerro] = useState({
-    raza: user?.perro_raza || "",
-    es_mezcla: Boolean(user?.perro_mezcla),
-    agresivo: user?.perro_agresivo ? true : undefined,
-  });
+  const [perroId, setPerroId] = useState(perros[0]?.id ?? null);
+  const [nuevo, setNuevo] = useState({ ...PERRO_VACIO });
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setPerroId((id) => id ?? perros[0]?.id ?? null);
+  }, [perros]);
 
   useEffect(() => {
     api("/api/comunas").then((rows) => {
@@ -24,17 +27,23 @@ export default function PublicarSolicitud() {
     });
   }, []);
 
+  async function resolverPerroId() {
+    if (perroId) return perroId;
+    const created = await guardarPerro(nuevo);
+    await refresh();
+    return created.id;
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     try {
+      const idPerro = await resolverPerroId();
       await api("/api/solicitudes", {
         method: "POST",
         body: JSON.stringify({
           ...form,
           monto_clp: Number(form.monto_clp),
-          raza: perro.raza,
-          es_mezcla: perro.es_mezcla,
-          agresivo: Boolean(perro.agresivo),
+          perro_id: idPerro,
         }),
       });
       nav("/solicitudes");
@@ -47,6 +56,7 @@ export default function PublicarSolicitud() {
     <form onSubmit={onSubmit} className="px-4 py-5 space-y-3">
       <h1 className="font-display text-2xl text-bosque">Publicar solicitud de paseo</h1>
       <p className="text-sm text-tinta/70">La ven los paseadores cuya zona de km cubre esa comuna.</p>
+      <SelectorPerro perros={perros} selectedId={perroId} onSelect={setPerroId} nuevo={nuevo} onNuevoChange={setNuevo} />
       <select className="w-full rounded-xl border border-arena px-3 py-2" value={form.comuna_id} onChange={(e) => setForm({ ...form, comuna_id: Number(e.target.value) })}>
         {comunas.map((c) => (
           <option key={c.id} value={c.id}>{c.nombre}</option>
@@ -59,7 +69,6 @@ export default function PublicarSolicitud() {
         ))}
       </select>
       <input className="w-full rounded-xl border border-arena px-3 py-2" type="number" placeholder="Monto dispuesto a pagar (CLP)" value={form.monto_clp} onChange={(e) => setForm({ ...form, monto_clp: e.target.value })} required />
-      <DatosPerro value={perro} onChange={setPerro} />
       <textarea className="w-full rounded-xl border border-arena px-3 py-2" placeholder="Punto de encuentro u otras indicaciones" value={form.mensaje} onChange={(e) => setForm({ ...form, mensaje: e.target.value })} />
       {error && <p className="text-greda text-sm">{error}</p>}
       <button className="w-full bg-bosque text-crema font-bold rounded-xl py-3">Publicar</button>

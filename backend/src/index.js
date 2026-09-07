@@ -17,6 +17,7 @@ import { anunciosRouter } from "./routes/anuncios.js";
 import { adminRouter } from "./routes/admin.js";
 import { usersRouter } from "./routes/users.js";
 import { canilesRouter } from "./routes/caniles.js";
+import { perrosRouter } from "./routes/perros.js";
 
 migrate();
 purgeExpiredIdDocuments();
@@ -56,6 +57,7 @@ app.use("/api/anuncios", anunciosRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/usuarios", usersRouter);
 app.use("/api/caniles", canilesRouter);
+app.use("/api/perros", perrosRouter);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontDist = path.join(__dirname, "..", "..", "frontend", "dist");

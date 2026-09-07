@@ -1,5 +1,6 @@
 import { db } from "../db.js";
 import { archivarVigentes, borrarArchivosDeUsuario } from "./documentos.js";
+import { borrarFotosPerros } from "../routes/perros.js";
 
 export function eliminarCuenta(userId, { actorId } = {}) {
   const user = db.prepare("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL").get(Number(userId));
@@ -40,6 +41,8 @@ export function eliminarCuenta(userId, { actorId } = {}) {
     `UPDATE paseos SET estado = 'cancelado'
      WHERE (dueno_id = ? OR paseador_id = ?) AND estado IN ('acordado','en_curso')`
   ).run(user.id, user.id);
+
+  borrarFotosPerros(user.id);
 
   const anon = `eliminado-${user.id}@eliminado.local`;
   db.prepare(
