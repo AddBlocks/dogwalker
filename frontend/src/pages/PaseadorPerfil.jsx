@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, clp } from "../lib/api";
+import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import Stars from "../components/Stars";
 import PagoPaseador from "../components/PagoPaseador";
+import PreciosPaseador from "../components/PreciosPaseador";
 
 export default function PaseadorPerfil() {
   const { id } = useParams();
@@ -20,15 +21,13 @@ export default function PaseadorPerfil() {
 
   return (
     <div className="px-4 py-5 space-y-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-3xl text-bosque">{w.nombre}</h1>
-          {w.destacado && <span className="text-xs font-bold bg-greda text-white px-2 py-0.5 rounded-full">Destacado</span>}
-          <Stars value={w.calificacion} />
-          <p className="text-sm text-tinta/60">{w.paseos} paseos · {w.cantidad_reseñas} reseñas</p>
-        </div>
-        <p className="font-bold text-xl text-bosque-claro">{clp(w.precio_clp)}</p>
+      <div>
+        <h1 className="font-display text-3xl text-bosque">{w.nombre}</h1>
+        {w.destacado && <span className="text-xs font-bold bg-greda text-white px-2 py-0.5 rounded-full">Destacado</span>}
+        <Stars value={w.calificacion} />
+        <p className="text-sm text-tinta/60">{w.paseos} paseos · {w.cantidad_reseñas} reseñas</p>
       </div>
+      <PreciosPaseador walker={w} />
       <p>{w.descripcion}</p>
       <p className="text-sm"><strong>Disponibilidad:</strong> {w.disponibilidad}</p>
       <p className="text-sm">

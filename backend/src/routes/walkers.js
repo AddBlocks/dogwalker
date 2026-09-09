@@ -34,6 +34,8 @@ function walkerRow(row) {
     avatar_url: row.avatar_url,
     descripcion: row.descripcion,
     precio_clp: row.precio_clp,
+    precio_varios_clp: row.precio_varios_clp || null,
+    precio_grupal_clp: row.precio_grupal_clp || null,
     disponibilidad: row.disponibilidad,
     destacado: !!row.destacado,
     calificacion: row.calificacion_promedio,
@@ -64,7 +66,7 @@ function walkerRow(row) {
 }
 
 walkersRouter.put("/mi-oferta", auth(true), requireRol("paseador"), async (req, res) => {
-  const { descripcion, precio_clp, disponibilidad, direccion, radio_km, calles } = req.body || {};
+  const { descripcion, precio_clp, precio_varios_clp, precio_grupal_clp, disponibilidad, direccion, radio_km, calles } = req.body || {};
   const p = db.prepare("SELECT id FROM paseadores WHERE user_id = ?").get(req.user.id);
   if (!p) return res.status(404).json({ error: "Perfil de paseador no encontrado." });
   const radio = Number(radio_km);
@@ -73,6 +75,18 @@ walkersRouter.put("/mi-oferta", auth(true), requireRol("paseador"), async (req, 
   }
   if (!Number.isFinite(radio) || radio < 0.5 || radio > 20) {
     return res.status(400).json({ error: "El radio de paseo debe ser entre 0,5 y 20 km." });
+  }
+  const uno = Number(precio_clp);
+  if (!Number.isFinite(uno) || uno < 1) {
+    return res.status(400).json({ error: "Indicá el precio de pasear un perro de un dueño." });
+  }
+  const varios = precio_varios_clp === "" || precio_varios_clp == null ? null : Number(precio_varios_clp);
+  if (varios != null && (!Number.isFinite(varios) || varios < 1)) {
+    return res.status(400).json({ error: "El precio de varios perros del mismo dueño tiene que ser un monto válido, o dejalo vacío." });
+  }
+  const grupal = precio_grupal_clp === "" || precio_grupal_clp == null ? null : Number(precio_grupal_clp);
+  if (grupal != null && (!Number.isFinite(grupal) || grupal < 1)) {
+    return res.status(400).json({ error: "El precio con perros de otros dueños tiene que ser un monto válido, o dejalo vacío si no lo ofrecés." });
   }
   const geo = await geocodeSantiago(direccion);
   if (!geo) {
@@ -96,12 +110,14 @@ walkersRouter.put("/mi-oferta", auth(true), requireRol("paseador"), async (req, 
   }
   db.prepare(
     `UPDATE paseadores
-     SET descripcion = ?, precio_clp = ?, disponibilidad = ?,
+     SET descripcion = ?, precio_clp = ?, precio_varios_clp = ?, precio_grupal_clp = ?, disponibilidad = ?,
          direccion_privada = ?, lat = ?, lng = ?, radio_km = ?, calles_json = ?
      WHERE id = ?`
   ).run(
     descripcion || null,
-    precio_clp || null,
+    Math.round(uno),
+    varios != null ? Math.round(varios) : null,
+    grupal != null ? Math.round(grupal) : null,
     disponibilidad || null,
     String(direccion).trim(),
     geo.lat,
@@ -173,7 +189,7 @@ walkersRouter.get("/", (req, res) => {
 
   let sql = `
     SELECT u.id AS user_id, u.nombre, u.avatar_url, u.calificacion_promedio, u.calificacion_count,
-           p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados,
+           p.id AS paseador_id, p.descripcion, p.precio_clp, p.precio_varios_clp, p.precio_grupal_clp, p.disponibilidad, p.destacado, p.paseos_completados,
            p.lat, p.lng, p.radio_km, p.calles_json,
            p.banco, p.tipo_cuenta, p.numero_cuenta, p.titular, p.rut_titular,
            p.email_transferencia, p.pago_momento, p.monto_anticipado_clp,
@@ -185,8 +201,8 @@ walkersRouter.get("/", (req, res) => {
   `;
   const params = [];
   if (precioMax) {
-    sql += ` AND p.precio_clp <= ?`;
-    params.push(precioMax);
+    sql += ` AND (p.precio_clp <= ? OR p.precio_varios_clp <= ? OR p.precio_grupal_clp <= ?)`;
+    params.push(precioMax, precioMax, precioMax);
   }
   if (calMin) {
     sql += ` AND u.calificacion_promedio >= ?`;
@@ -212,7 +228,7 @@ walkersRouter.get("/:id", (req, res) => {
   const row = db
     .prepare(
       `SELECT u.id AS user_id, u.nombre, u.avatar_url, u.calificacion_promedio, u.calificacion_count,
-              p.id AS paseador_id, p.descripcion, p.precio_clp, p.disponibilidad, p.destacado, p.paseos_completados,
+              p.id AS paseador_id, p.descripcion, p.precio_clp, p.precio_varios_clp, p.precio_grupal_clp, p.disponibilidad, p.destacado, p.paseos_completados,
               p.estado_verificacion, p.lat, p.lng, p.radio_km, p.calles_json,
               p.banco, p.tipo_cuenta, p.numero_cuenta, p.titular, p.rut_titular,
               p.email_transferencia, p.pago_momento, p.monto_anticipado_clp,

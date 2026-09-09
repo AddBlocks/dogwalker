@@ -11,6 +11,13 @@ import WalkerCard from "../components/WalkerCard";
 import Stars from "../components/Stars";
 import { pinCanilHtml, pinHuellasHtml } from "../components/Logo";
 
+function resumenPrecios(w) {
+  const bits = [clp(w.precio_clp)];
+  if (w.precio_varios_clp) bits.push(`${clp(w.precio_varios_clp)} varios tuyos`);
+  if (w.precio_grupal_clp) bits.push(`${clp(w.precio_grupal_clp)} con otros dueños`);
+  return bits.join(" · ");
+}
+
 function pinIcon(destacado) {
   return L.divIcon({
     className: "",
@@ -150,7 +157,7 @@ export default function Mapa() {
               >
                 <Popup>
                   <p className="font-bold m-0">{w.nombre}</p>
-                  <p className="m-0 text-sm">{clp(w.precio_clp)} · zona de {w.nombre}</p>
+                  <p className="m-0 text-sm">{resumenPrecios(w)} · zona de {w.nombre}</p>
                   <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
                 </Popup>
               </Polygon>
@@ -167,7 +174,7 @@ export default function Mapa() {
                 <Popup>
                   <p className="font-bold m-0">{w.nombre}</p>
                   <p className="m-0 text-sm">
-                    {clp(w.precio_clp)} · zona {w.radio_km} km
+                    {resumenPrecios(w)} · zona {w.radio_km} km
                   </p>
                   <Link to={`/paseador/${w.id}`}>Ver perfil</Link>
                 </Popup>
@@ -198,7 +205,7 @@ export default function Mapa() {
                 {w.destacado && <p className="text-xs text-amber-700 m-0">Destacado</p>}
                 <Stars value={w.calificacion} />
                 <p className="m-0 text-sm">
-                  {clp(w.precio_clp)} · zona {w.radio_km} km
+                  {resumenPrecios(w)} · zona {w.radio_km} km
                 </p>
                 {w.calles?.length > 0 && (
                   <p className="m-0 text-xs">{w.calles.map((c) => c.nombre).join(" · ")}</p>

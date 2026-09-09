@@ -7,6 +7,8 @@ export default function MiOferta() {
   const [form, setForm] = useState({
     descripcion: "",
     precio_clp: "",
+    precio_varios_clp: "",
+    precio_grupal_clp: "",
     disponibilidad: "",
     direccion: "",
     radio_km: "3",
@@ -22,6 +24,8 @@ export default function MiOferta() {
       setForm({
         descripcion: paseador.descripcion || "",
         precio_clp: paseador.precio_clp || "",
+        precio_varios_clp: paseador.precio_varios_clp || "",
+        precio_grupal_clp: paseador.precio_grupal_clp || "",
         disponibilidad: paseador.disponibilidad || "",
         direccion: paseador.direccion_privada || "",
         radio_km: paseador.radio_km || "3",
@@ -48,6 +52,8 @@ export default function MiOferta() {
         body: JSON.stringify({
           ...form,
           precio_clp: Number(form.precio_clp),
+          precio_varios_clp: form.precio_varios_clp === "" ? null : Number(form.precio_varios_clp),
+          precio_grupal_clp: form.precio_grupal_clp === "" ? null : Number(form.precio_grupal_clp),
           radio_km: Number(form.radio_km),
         }),
       });
@@ -79,7 +85,44 @@ export default function MiOferta() {
         </p>
       )}
       <textarea className="w-full rounded-xl border border-arena px-3 py-2" placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
-      <input className="w-full rounded-xl border border-arena px-3 py-2" type="number" placeholder="Precio por paseo (CLP)" value={form.precio_clp} onChange={(e) => setForm({ ...form, precio_clp: e.target.value })} />
+      <p className="text-sm font-bold">Precios (CLP)</p>
+      <label className="block text-sm">
+        1 perro tuyo
+        <span className="block text-xs text-tinta/60 font-normal">El precio de siempre: un perro, de un mismo dueño.</span>
+        <input
+          className="mt-1 w-full rounded-xl border border-arena px-3 py-2"
+          type="number"
+          min="1"
+          placeholder="Ej. 10000"
+          value={form.precio_clp}
+          onChange={(e) => setForm({ ...form, precio_clp: e.target.value })}
+          required
+        />
+      </label>
+      <label className="block text-sm">
+        Varios perros del mismo dueño
+        <span className="block text-xs text-tinta/60 font-normal">Si paseás más de un perro de la misma persona. Dejalo vacío si no lo ofrecés.</span>
+        <input
+          className="mt-1 w-full rounded-xl border border-arena px-3 py-2"
+          type="number"
+          min="1"
+          placeholder="Opcional"
+          value={form.precio_varios_clp}
+          onChange={(e) => setForm({ ...form, precio_varios_clp: e.target.value })}
+        />
+      </label>
+      <label className="block text-sm">
+        Con perros de otros dueños
+        <span className="block text-xs text-tinta/60 font-normal">Si juntás perros de distintos dueños en el mismo paseo. Vacío = no lo ofrecés.</span>
+        <input
+          className="mt-1 w-full rounded-xl border border-arena px-3 py-2"
+          type="number"
+          min="1"
+          placeholder="Opcional"
+          value={form.precio_grupal_clp}
+          onChange={(e) => setForm({ ...form, precio_grupal_clp: e.target.value })}
+        />
+      </label>
       <input className="w-full rounded-xl border border-arena px-3 py-2" placeholder="Disponibilidad" value={form.disponibilidad} onChange={(e) => setForm({ ...form, disponibilidad: e.target.value })} />
 
       <p className="text-sm font-bold">Dirección (privada)</p>

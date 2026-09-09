@@ -52,6 +52,8 @@ export function migrate() {
       user_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
       descripcion TEXT,
       precio_clp INTEGER,
+      precio_varios_clp INTEGER,
+      precio_grupal_clp INTEGER,
       disponibilidad TEXT,
       destacado INTEGER DEFAULT 0,
       estado_verificacion TEXT DEFAULT 'pendiente'
@@ -115,6 +117,8 @@ export function migrate() {
       agresivo INTEGER DEFAULT 0,
       perro_id INTEGER REFERENCES perros(id),
       perro_nombre TEXT,
+      tipo_paseo TEXT DEFAULT 'uno'
+        CHECK(tipo_paseo IN ('uno','varios','grupal')),
       estado TEXT DEFAULT 'abierta'
         CHECK(estado IN ('abierta','pendiente','aceptada','rechazada','cancelada')),
       created_at TEXT DEFAULT (datetime('now')),
@@ -220,6 +224,7 @@ export function migrate() {
   migrateDocumentosHistorico();
   migrateCaniles();
   migratePerros();
+  migratePreciosPaseo();
 }
 
 function tableSql(name) {
@@ -280,6 +285,22 @@ function migrateZonaPaseo() {
   if (!hasColumn("paseadores", "lng")) db.exec("ALTER TABLE paseadores ADD COLUMN lng REAL");
   if (!hasColumn("paseadores", "radio_km")) db.exec("ALTER TABLE paseadores ADD COLUMN radio_km REAL");
   if (!hasColumn("paseadores", "calles_json")) db.exec("ALTER TABLE paseadores ADD COLUMN calles_json TEXT");
+}
+
+function migratePreciosPaseo() {
+  if (!hasColumn("paseadores", "precio_varios_clp")) db.exec("ALTER TABLE paseadores ADD COLUMN precio_varios_clp INTEGER");
+  if (!hasColumn("paseadores", "precio_grupal_clp")) db.exec("ALTER TABLE paseadores ADD COLUMN precio_grupal_clp INTEGER");
+  if (!hasColumn("solicitudes", "tipo_paseo")) {
+    db.exec("ALTER TABLE solicitudes ADD COLUMN tipo_paseo TEXT DEFAULT 'uno'");
+    db.prepare("UPDATE solicitudes SET tipo_paseo = 'uno' WHERE tipo_paseo IS NULL").run();
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS solicitud_perros (
+      solicitud_id INTEGER NOT NULL REFERENCES solicitudes(id) ON DELETE CASCADE,
+      perro_id INTEGER NOT NULL REFERENCES perros(id),
+      PRIMARY KEY (solicitud_id, perro_id)
+    );
+  `);
 }
 
 function migratePagoPaseador() {

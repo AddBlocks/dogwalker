@@ -17,6 +17,23 @@ export const CATEGORIAS = [
 
 export const FRECUENCIAS = ["Una vez", "2 a 3 veces por semana", "Lunes a viernes", "Todos los días"];
 
+export const TIPOS_PASEO = [
+  { id: "uno", label: "1 perro tuyo", hint: "Solo un perro, de un mismo dueño.", precioKey: "precio_clp" },
+  { id: "varios", label: "Varios perros tuyos", hint: "Más de un perro del mismo dueño.", precioKey: "precio_varios_clp" },
+  { id: "grupal", label: "Con perros de otros dueños", hint: "El paseador junta perros de distintos dueños.", precioKey: "precio_grupal_clp" },
+];
+
+export function tipoPaseoLabel(tipo) {
+  return TIPOS_PASEO.find((t) => t.id === tipo)?.label || "1 perro tuyo";
+}
+
+export function precioPaseo(walker, tipo = "uno") {
+  if (!walker) return null;
+  if (tipo === "varios") return walker.precio_varios_clp || null;
+  if (tipo === "grupal") return walker.precio_grupal_clp || null;
+  return walker.precio_clp || null;
+}
+
 export const RAZAS = [
   "Labrador",
   "Golden Retriever",

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
-import { clp } from "../lib/api";
 import { pagoMomentoLabel } from "../lib/format";
 import Stars from "./Stars";
+import PreciosPaseador from "./PreciosPaseador";
 
 export default function WalkerCard({ walker }) {
   const pago = pagoMomentoLabel(walker.pago_momento, walker.monto_anticipado_clp);
@@ -23,8 +23,8 @@ export default function WalkerCard({ walker }) {
           <Stars value={walker.calificacion} />
           <p className="text-sm text-tinta/60 mt-1">{walker.paseos} paseos concretados</p>
         </div>
-        <p className="font-bold text-bosque-claro whitespace-nowrap">{clp(walker.precio_clp)}</p>
       </div>
+      <PreciosPaseador walker={walker} compact />
       {walker.radio_km && (
         <p className="text-xs text-tinta/50 mt-2">
           Zona de {walker.radio_km} km

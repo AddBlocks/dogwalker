@@ -321,6 +321,11 @@ for (const w of walkers) {
       exists.id
     );
   }
+  db.prepare("UPDATE paseadores SET precio_varios_clp = ?, precio_grupal_clp = ? WHERE user_id = ?").run(
+    Math.round(w.precio * 1.5),
+    w.destacado ? Math.round(w.precio * 0.75) : null,
+    uid
+  );
 }
 
 const pendingUid = upsertUser({

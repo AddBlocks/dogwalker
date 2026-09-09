@@ -290,6 +290,8 @@ authRouter.get("/me", auth(true), (req, res) => {
         id: paseador.id,
         descripcion: paseador.descripcion,
         precio_clp: paseador.precio_clp,
+        precio_varios_clp: paseador.precio_varios_clp || null,
+        precio_grupal_clp: paseador.precio_grupal_clp || null,
         disponibilidad: paseador.disponibilidad,
         destacado: !!paseador.destacado,
         estado_verificacion: paseador.estado_verificacion,

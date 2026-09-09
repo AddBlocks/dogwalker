@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, clp } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { estadoLabel } from "../lib/format";
+import { estadoLabel, tipoPaseoLabel } from "../lib/format";
 import FotoPerro from "../components/FotoPerro";
 
 export default function Solicitudes() {
@@ -74,26 +74,23 @@ export default function Solicitudes() {
           <p className="font-display text-lg">{s.comuna}</p>
           <p className="text-sm">{s.horario} · {s.frecuencia}</p>
           <p className="font-bold">{clp(s.monto_clp)}</p>
-          {(s.raza || s.perro_nombre) && (
-            <div className="flex items-center gap-2 pt-1">
-              <FotoPerro
-                perro={{
-                  id: s.perro_id,
-                  raza: s.raza,
-                  avatar: s.perro_avatar,
-                  tiene_foto: s.perro_tiene_foto,
-                  nombre: s.perro_nombre,
-                }}
-                className="w-10 h-10"
-              />
+          <p className="text-xs text-tinta/60">{tipoPaseoLabel(s.tipo_paseo)}</p>
+          {(s.perros?.length
+            ? s.perros
+            : s.raza || s.perro_nombre
+              ? [{ id: s.perro_id, nombre: s.perro_nombre, raza: s.raza, avatar: s.perro_avatar, tiene_foto: s.perro_tiene_foto, es_mezcla: s.es_mezcla, agresivo: s.agresivo }]
+              : []
+          ).map((p) => (
+            <div key={p.id || p.nombre || p.raza} className="flex items-center gap-2 pt-1">
+              <FotoPerro perro={p} className="w-10 h-10" />
               <p className="text-sm">
-                {s.perro_nombre ? `${s.perro_nombre} · ` : ""}
-                {s.raza}
-                {s.es_mezcla ? " (mezcla)" : ""}
-                {s.agresivo ? " · peligroso/agresivo" : ""}
+                {p.nombre ? `${p.nombre} · ` : ""}
+                {p.raza}
+                {p.es_mezcla ? " (mezcla)" : ""}
+                {p.agresivo ? " · peligroso/agresivo" : ""}
               </p>
             </div>
-          )}
+          ))}
           {s.mensaje && <p className="text-sm text-tinta/70">{s.mensaje}</p>}
           {user.rol === "dueno" && s.paseador_nombre && <p className="text-sm">Paseador: {s.paseador_nombre}</p>}
           {user.rol === "paseador" && <p className="text-sm">Dueño: {s.dueno_nombre}</p>}
