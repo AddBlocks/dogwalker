@@ -72,8 +72,7 @@ Sin esto la base y las fotos de cédula/perros se pierden al redesplegar.
 
 En el servicio → **Variables**. Pegá (valores reales, no los de `.env.example`):
 
-- [ ] `NIXPACKS_NODE_VERSION` = `22`
-- [ ] `NODE_ENV` = `production`
+- [ ] `RAILPACK_NODE_VERSION` = `22`
 - [ ] `JWT_SECRET` = (paso 1)
 - [ ] `FILE_KEY` = (paso 1)
 - [ ] `DATA_DIR` = `/data`
@@ -180,6 +179,7 @@ Si el login no anda: `FRONTEND_URL` tiene que ser exactamente la URL HTTPS que v
 
 | Síntoma | Qué mirar |
 | --- | --- |
+| Deploy rojo, `secret NODE_ENV not found` | Borrá `NODE_ENV` de Variables. Railpack ya pone production; no la declares. |
 | Deploy rojo, `vite: not found` | El build omitió `devDependencies`. Ya está corregido en `package.json`; redesplegá ese commit. |
 | Página en blanco / 404 | No se buildeó `frontend/dist` |
 | Login 403 CORS | `FRONTEND_URL` no coincide con la URL del navegador |
