@@ -1,12 +1,7 @@
-import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { slugForRaza } from "./services/avatares.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, "..", "data");
-fs.mkdirSync(dataDir, { recursive: true });
+import { dataDir } from "./paths.js";
 
 export const db = new DatabaseSync(path.join(dataDir, "paseopatitas.db"));
 db.exec("PRAGMA journal_mode = WAL");

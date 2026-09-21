@@ -1,15 +1,11 @@
 import { Router } from "express";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import multer from "multer";
 import { db, lastId } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
 import { AVATAR_SLUGS, slugForRaza } from "../services/avatares.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const uploadPerrosDir = path.join(__dirname, "..", "..", "uploads", "perros");
-fs.mkdirSync(uploadPerrosDir, { recursive: true });
+import { uploadPerrosDir } from "../paths.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),

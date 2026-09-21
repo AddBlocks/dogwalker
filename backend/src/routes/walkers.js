@@ -1,6 +1,4 @@
 import { Router } from "express";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import multer from "multer";
 import { db } from "../db.js";
 import { auth, requireRol } from "../middleware/auth.js";
@@ -10,9 +8,9 @@ import { submitVerification, verificationProviderName } from "../services/verifi
 import { leerFechaNacimiento, resolverEdad, validarEdadPaseador } from "../services/cedula.js";
 import { geocodeSantiago, haversineKm } from "../services/geocode.js";
 import { armarZonaCalles, parseZona, puntoEnPoligono } from "../services/zonaCalles.js";
+import { uploadIdsDir } from "../paths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadDir = path.join(__dirname, "..", "..", "uploads", "ids");
+export const uploadDir = uploadIdsDir;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 6 * 1024 * 1024 },
@@ -341,5 +339,3 @@ walkersRouter.post(
     }
   }
 );
-
-export { uploadDir };

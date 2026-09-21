@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
 import { db, lastId, migrate } from "./db.js";
 import { COMUNAS, comunaFeature } from "./data/comunas.js";
+import { uploadIdsDir } from "./paths.js";
 
 migrate();
 
@@ -38,10 +38,9 @@ const admin = db
   )
   .run("christian.aird@gmail.com", adminHash, "Administración Patitas", "+56911111111");
 
-const uploadDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads", "ids");
-if (fs.existsSync(uploadDir)) {
-  for (const name of fs.readdirSync(uploadDir)) {
-    fs.unlinkSync(path.join(uploadDir, name));
+if (fs.existsSync(uploadIdsDir)) {
+  for (const name of fs.readdirSync(uploadIdsDir)) {
+    fs.unlinkSync(path.join(uploadIdsDir, name));
   }
 }
 
