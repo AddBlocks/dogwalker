@@ -1,2 +1,11 @@
 [phases.setup]
 nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = [
+  "npm ci --prefix frontend --include=dev",
+  "npm ci --prefix backend"
+]
+
+[phases.build]
+cmds = ["npm run build --prefix frontend"]

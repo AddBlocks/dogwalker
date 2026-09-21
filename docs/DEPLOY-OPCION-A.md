@@ -23,8 +23,8 @@ git push origin main
 
 ## 1. Secretos (en tu PC, no los subas)
 
-- [ ] `JWT_SECRET` generado (texto largo aleatorio)
-- [ ] `FILE_KEY` de 64 caracteres hex (32 bytes), **distinto** al de local
+- [X] `JWT_SECRET` generado (texto largo aleatorio)
+- [X] `FILE_KEY` de 64 caracteres hex (32 bytes), **distinto** al de local
 
 ```powershell
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
@@ -180,7 +180,7 @@ Si el login no anda: `FRONTEND_URL` tiene que ser exactamente la URL HTTPS que v
 
 | Síntoma | Qué mirar |
 | --- | --- |
-| Deploy rojo, `node:sqlite` | Node 22 (`NIXPACKS_NODE_VERSION=22`) |
+| Deploy rojo, `vite: not found` | El build omitió `devDependencies`. Ya está corregido en `package.json`; redesplegá ese commit. |
 | Página en blanco / 404 | No se buildeó `frontend/dist` |
 | Login 403 CORS | `FRONTEND_URL` no coincide con la URL del navegador |
 | Usuarios desaparecen al deploy | Falta volumen `/data` o `DATA_DIR` |
