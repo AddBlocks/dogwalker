@@ -4,7 +4,7 @@ import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrate } from "./db.js";
-import { smtpConfigured } from "./services/mail.js";
+import { smtpConfigured, verificarSmtp } from "./services/mail.js";
 import { purgeExpiredIdDocuments } from "./services/retention.js";
 import { authRouter } from "./routes/auth.js";
 import { comunasRouter } from "./routes/comunas.js";
@@ -43,7 +43,12 @@ app.use(
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/salud", (_req, res) => {
-  res.json({ ok: true, nombre: "Patitas", version: "1.0.0" });
+  res.json({
+    ok: true,
+    nombre: "Patitas",
+    version: "1.0.0",
+    correo: smtpConfigured() ? "smtp" : "off",
+  });
 });
 
 app.use("/api/auth", authRouter);
@@ -75,7 +80,15 @@ app.use((err, _req, res, _next) => {
 const port = Number(process.env.PORT || 4000);
 app.listen(port, "0.0.0.0", () => {
   console.log(`Patitas API en http://127.0.0.1:${port}`);
-  if (smtpConfigured()) console.log("[Patitas] correo: SMTP");
-  else if (process.platform === "win32") console.log("[Patitas] correo: Outlook de Windows (SMTP no configurado)");
-  else console.warn("[Patitas] correo: no hay SMTP; los mails no se envían");
+  if (smtpConfigured()) {
+    console.log("[Patitas] correo: SMTP");
+    verificarSmtp().then(
+      () => console.log("[Patitas] correo: SMTP listo"),
+      (e) => console.error("[Patitas] correo: SMTP no conecta:", e.message)
+    );
+  } else if (process.platform === "win32") {
+    console.log("[Patitas] correo: Outlook de Windows (SMTP no configurado)");
+  } else {
+    console.warn("[Patitas] correo: no hay SMTP; los mails no se envían");
+  }
 });

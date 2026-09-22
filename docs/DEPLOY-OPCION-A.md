@@ -60,7 +60,8 @@ Outlook de Windows no existe en Railway.
 
 ## 4. Volumen persistente (si no, cada deploy borra usuarios)
 
-- [ ] En el servicio: **Settings → Volumes → Add volume**
+- [ ] En el **canvas del proyecto** (no en Settings): clic derecho en el fondo vacío → **Volume**, o `Ctrl+K` → `Volume`
+- [ ] Conectalo al servicio de la app
 - [ ] Mount path: `/data`
 - [ ] Variable `DATA_DIR` = `/data`
 
@@ -84,7 +85,7 @@ En el servicio → **Variables**. Pegá (valores reales, no los de `.env.example
 - [ ] `SMTP_SECURE` = `false`
 - [ ] `SMTP_USER` = tu Gmail
 - [ ] `SMTP_PASS` = contraseña de aplicación (sin espacios)
-- [ ] `SMTP_FROM` = `Patitas <tu@gmail.com>`
+- [ ] `SMTP_FROM` = `Patitas <tu@gmail.com>` (el mismo Gmail de `SMTP_USER`; Gmail rechaza `contacto@patitas.cl`)
 
 Después del primer dominio público:
 

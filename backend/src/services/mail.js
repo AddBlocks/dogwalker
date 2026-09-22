@@ -8,6 +8,23 @@ export function smtpConfigured() {
   return Boolean(process.env.SMTP_USER && process.env.SMTP_PASS && (process.env.SMTP_HOST || process.env.SMTP_SERVICE));
 }
 
+function fromAddress() {
+  const user = String(process.env.SMTP_USER || "").trim();
+  const configured = String(process.env.SMTP_FROM || "").trim();
+  const nameMatch = configured.match(/^(.+?)\s*</);
+  const name = (nameMatch ? nameMatch[1] : "Patitas").replace(/["<>]/g, "").trim() || "Patitas";
+  if (user && /@gmail\.com$/i.test(user)) {
+    return `${name} <${user}>`;
+  }
+  return configured || (user ? `${name} <${user}>` : name);
+}
+
+export async function verificarSmtp() {
+  if (!smtpConfigured()) return { ok: false, reason: "no-config" };
+  await getTransporter().verify();
+  return { ok: true };
+}
+
 function getTransporter() {
   if (transporter) return transporter;
   const user = process.env.SMTP_USER;
@@ -101,7 +118,7 @@ export async function enviarCorreo({ to, subject, text, html }) {
 
   if (smtpConfigured()) {
     const info = await getTransporter().sendMail({
-      from: process.env.SMTP_FROM || `Patitas <${process.env.SMTP_USER}>`,
+      from: fromAddress(),
       to,
       subject,
       text,
