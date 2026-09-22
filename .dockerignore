@@ -1,0 +1,17 @@
+node_modules
+frontend/node_modules
+backend/node_modules
+frontend/dist
+frontend/dev-dist
+backend/data
+backend/uploads
+.git
+.env
+backend/.env
+*.db
+*.db-journal
+android
+ios
+.capacitor
+docs
+*.md

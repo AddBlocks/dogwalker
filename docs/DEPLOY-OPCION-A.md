@@ -10,7 +10,7 @@ Plataforma de esta guía: [Railway](https://railway.app). Render o un VPS sirven
 
 - [x] Express sirve `frontend/dist` y `/api` en el mismo puerto
 - [x] Disco configurable con `DATA_DIR` (SQLite + uploads)
-- [x] `railway.json` + Node 22 (`nixpacks.toml`, `.nvmrc`)
+- [x] `Dockerfile` + Node 22 (`railway.json`, `.nvmrc`)
 - [ ] Cambios pusheados a GitHub (`main`)
 
 ```bash
@@ -70,9 +70,10 @@ Sin esto la base y las fotos de cédula/perros se pierden al redesplegar.
 
 ## 5. Variables de entorno
 
-En el servicio → **Variables**. Pegá (valores reales, no los de `.env.example`):
+En el servicio → **Variables**. Pegá (valores reales, no los de `.env.example`).
 
-- [ ] `RAILPACK_NODE_VERSION` = `22`
+**No agregues** `NODE_ENV`, `NIXPACKS_NODE_VERSION` ni `RAILPACK_NODE_VERSION`. El build es un Dockerfile (Node 22); esas variables no hacen falta.
+
 - [ ] `JWT_SECRET` = (paso 1)
 - [ ] `FILE_KEY` = (paso 1)
 - [ ] `DATA_DIR` = `/data`
@@ -101,13 +102,13 @@ No copies `TWILIO_*` del example a producción si no los usás (SMS está apagad
 
 ## 6. Build y arranque
 
-Si `railway.json` está en el repo, Railway ya usa:
+El repo usa **Dockerfile** (no Railpack). Así el build no pide secretos.
 
 - Build: instala front + back y genera `frontend/dist`
 - Start: `npm start --prefix backend`
 - Healthcheck: `GET /api/salud`
 
-- [ ] Settings → Build no pisa el comando (o coinciden con `railway.json`)
+- [ ] Settings → Build → Builder = **Dockerfile** (si el panel sigue en Railpack, cambialo)
 - [ ] **Deploy** / Redeploy
 - [ ] Deploy **Success**
 - [ ] Settings → Networking → **Generate domain** (queda `algo.up.railway.app`)
@@ -179,7 +180,7 @@ Si el login no anda: `FRONTEND_URL` tiene que ser exactamente la URL HTTPS que v
 
 | Síntoma | Qué mirar |
 | --- | --- |
-| Deploy rojo, `secret NODE_ENV not found` | Borrá `NODE_ENV` de Variables. Railpack ya pone production; no la declares. |
+| Deploy rojo, `secret … not found` | El servicio sigue en Railpack. Settings → Build → Builder = **Dockerfile** y redesplegá el commit con `Dockerfile`. |
 | Deploy rojo, `vite: not found` | El build omitió `devDependencies`. Ya está corregido en `package.json`; redesplegá ese commit. |
 | Página en blanco / 404 | No se buildeó `frontend/dist` |
 | Login 403 CORS | `FRONTEND_URL` no coincide con la URL del navegador |
